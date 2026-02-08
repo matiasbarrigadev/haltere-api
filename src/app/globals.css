@@ -2,21 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&display=swap');
 
 :root {
-  /* Brand Colors */
-  --color-black: #0A0A0A;
-  --color-gold: #C19A6B;
-  --color-gold-light: #D4A574;
-  --color-gold-dark: #A67B5B;
-  --color-white: #FAFAFA;
+  /* Brand Colors - Official Haltere Palette */
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+  
+  /* Primary Gold (YB - Yellow + Brown) */
+  --color-gold: #F2BB6A;
+  --color-gold-light: #F5C97D;
+  --color-gold-dark: #CE915C;
+  
+  /* Brown Palette */
+  --color-brown-dark: #383330;
+  --color-brown-medium: #4F413A;
+  --color-brown-accent: #86390D;
+  
+  /* Neutral */
+  --color-cream: #D4C9C2;
   --color-gray: #8A8A8A;
-  --color-gray-dark: #2A2A2A;
+  --color-gray-dark: #1A1A1A;
   
   /* Typography */
-  --font-serif: 'Cormorant Garamond', Georgia, serif;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-sans: 'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-logo: 'Century Gothic', 'Poppins', sans-serif;
   
   /* Spacing */
   --space-xs: 0.5rem;
@@ -52,8 +62,8 @@ body {
 
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-serif);
-  font-weight: 400;
+  font-family: var(--font-sans);
+  font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--color-gold);
 }
@@ -75,7 +85,7 @@ h3 {
 
 p {
   font-family: var(--font-sans);
-  font-weight: 300;
+  font-weight: 400;
   color: var(--color-white);
   opacity: 0.9;
 }
@@ -99,7 +109,7 @@ a:hover {
   padding: 1rem 2rem;
   font-family: var(--font-sans);
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   border: 1px solid var(--color-gold);
@@ -125,6 +135,17 @@ a:hover {
   border-color: var(--color-gold-light);
 }
 
+.btn-secondary {
+  background: var(--color-brown-dark);
+  border-color: var(--color-brown-medium);
+  color: var(--color-gold);
+}
+
+.btn-secondary:hover {
+  background: var(--color-brown-medium);
+  border-color: var(--color-gold);
+}
+
 .btn-large {
   padding: 1.25rem 3rem;
   font-size: 1rem;
@@ -146,9 +167,9 @@ a:hover {
   right: 0;
   z-index: 100;
   padding: var(--space-sm) 0;
-  background: rgba(10, 10, 10, 0.95);
+  background: rgba(0, 0, 0, 0.95);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(193, 154, 107, 0.1);
+  border-bottom: 1px solid rgba(242, 187, 106, 0.1);
 }
 
 .header-inner {
@@ -161,16 +182,17 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: 1.5rem;
-  font-weight: 400;
-  letter-spacing: 0.2em;
+  font-weight: 300;
+  letter-spacing: 0.3em;
   color: var(--color-gold);
   text-transform: lowercase;
 }
 
 .logo-symbol {
   font-size: 1.75rem;
+  font-weight: 400;
   color: var(--color-gold);
 }
 
@@ -182,7 +204,7 @@ a:hover {
 
 .nav-link {
   font-size: 0.875rem;
-  font-weight: 400;
+  font-weight: 500;
   letter-spacing: 0.05em;
   color: var(--color-white);
   opacity: 0.8;
@@ -257,7 +279,7 @@ a:hover {
 .section-subtitle {
   font-family: var(--font-sans);
   font-size: 0.75rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--color-gold);
@@ -286,8 +308,8 @@ a:hover {
 
 /* Cards */
 .card {
-  background: var(--color-gray-dark);
-  border: 1px solid rgba(193, 154, 107, 0.2);
+  background: var(--color-brown-dark);
+  border: 1px solid rgba(242, 187, 106, 0.2);
   border-radius: var(--radius-md);
   padding: var(--space-md);
   transition: all 0.3s ease;
@@ -325,10 +347,10 @@ a:hover {
   text-align: center;
   background: linear-gradient(
     180deg,
-    rgba(193, 154, 107, 0.05) 0%,
+    rgba(242, 187, 106, 0.05) 0%,
     transparent 100%
   );
-  border: 1px solid rgba(193, 154, 107, 0.1);
+  border: 1px solid rgba(242, 187, 106, 0.1);
   border-radius: var(--radius-lg);
   transition: all 0.4s ease;
 }
@@ -337,7 +359,7 @@ a:hover {
   border-color: var(--color-gold);
   background: linear-gradient(
     180deg,
-    rgba(193, 154, 107, 0.1) 0%,
+    rgba(242, 187, 106, 0.1) 0%,
     transparent 100%
   );
 }
@@ -356,7 +378,7 @@ a:hover {
 .form-label {
   display: block;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-white);
   margin-bottom: 0.5rem;
 }
@@ -368,8 +390,8 @@ a:hover {
   padding: 1rem;
   font-family: var(--font-sans);
   font-size: 1rem;
-  background: var(--color-gray-dark);
-  border: 1px solid rgba(193, 154, 107, 0.2);
+  background: var(--color-brown-dark);
+  border: 1px solid rgba(242, 187, 106, 0.2);
   border-radius: var(--radius-sm);
   color: var(--color-white);
   transition: all 0.3s ease;
@@ -380,7 +402,7 @@ a:hover {
 .form-textarea:focus {
   outline: none;
   border-color: var(--color-gold);
-  background: rgba(193, 154, 107, 0.05);
+  background: rgba(242, 187, 106, 0.05);
 }
 
 .form-input::placeholder,
@@ -396,7 +418,7 @@ a:hover {
 /* Footer */
 .footer {
   padding: var(--space-lg) 0;
-  border-top: 1px solid rgba(193, 154, 107, 0.1);
+  border-top: 1px solid rgba(242, 187, 106, 0.1);
   text-align: center;
 }
 
@@ -405,11 +427,28 @@ a:hover {
   color: var(--color-gray);
 }
 
+/* Background Variants */
+.bg-gold {
+  background-color: var(--color-gold);
+  color: var(--color-black);
+}
+
+.bg-brown {
+  background-color: var(--color-brown-dark);
+}
+
+.bg-cream {
+  background-color: var(--color-cream);
+  color: var(--color-brown-dark);
+}
+
 /* Utilities */
 .text-center { text-align: center; }
 .text-gold { color: var(--color-gold); }
 .text-white { color: var(--color-white); }
 .text-gray { color: var(--color-gray); }
+.text-brown { color: var(--color-brown-dark); }
+.text-cream { color: var(--color-cream); }
 
 .mt-sm { margin-top: var(--space-sm); }
 .mt-md { margin-top: var(--space-md); }
@@ -439,3 +478,52 @@ a:hover {
 .delay-2 { animation-delay: 0.2s; }
 .delay-3 { animation-delay: 0.3s; }
 .delay-4 { animation-delay: 0.4s; }
+
+/* Tailwind Custom Classes */
+@layer components {
+  .haltere-btn {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold uppercase tracking-wider border transition-all duration-300;
+    border-color: var(--color-gold);
+    color: var(--color-gold);
+  }
+  
+  .haltere-btn:hover {
+    background-color: var(--color-gold);
+    color: var(--color-black);
+  }
+  
+  .haltere-btn-primary {
+    background-color: var(--color-gold);
+    color: var(--color-black);
+  }
+  
+  .haltere-btn-primary:hover {
+    background-color: var(--color-gold-light);
+    border-color: var(--color-gold-light);
+  }
+  
+  .haltere-card {
+    @apply p-6 rounded-lg transition-all duration-300;
+    background-color: var(--color-brown-dark);
+    border: 1px solid rgba(242, 187, 106, 0.2);
+  }
+  
+  .haltere-card:hover {
+    border-color: var(--color-gold);
+    transform: translateY(-4px);
+  }
+  
+  .haltere-input {
+    @apply w-full px-4 py-3 text-base rounded transition-all duration-300;
+    font-family: var(--font-sans);
+    background-color: var(--color-brown-dark);
+    border: 1px solid rgba(242, 187, 106, 0.2);
+    color: var(--color-white);
+  }
+  
+  .haltere-input:focus {
+    outline: none;
+    border-color: var(--color-gold);
+    background-color: rgba(242, 187, 106, 0.05);
+  }
+}

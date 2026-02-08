@@ -3,6 +3,39 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
+// Logo SVG Component based on Brand Guidelines
+const HaltereLogo = ({ className = '', size = 'default' }: { className?: string; size?: 'default' | 'large' }) => {
+  const height = size === 'large' ? 60 : 40;
+  return (
+    <svg 
+      viewBox="0 0 100 100" 
+      height={height}
+      className={className}
+      fill="currentColor"
+      aria-label="Haltere Logo"
+    >
+      {/* Stylized H with barbell bars */}
+      <g>
+        {/* Left vertical bar with weights */}
+        <rect x="20" y="15" width="4" height="70" />
+        <rect x="15" y="20" width="14" height="8" rx="1" />
+        <rect x="15" y="72" width="14" height="8" rx="1" />
+        
+        {/* Center H connector */}
+        <rect x="24" y="45" width="52" height="4" />
+        
+        {/* Middle vertical (T of halTere) */}
+        <rect x="48" y="25" width="4" height="50" />
+        
+        {/* Right vertical bar with weights */}
+        <rect x="76" y="15" width="4" height="70" />
+        <rect x="71" y="20" width="14" height="8" rx="1" />
+        <rect x="71" y="72" width="14" height="8" rx="1" />
+      </g>
+    </svg>
+  );
+};
+
 export default function ApplyPage() {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,8 +93,12 @@ export default function ApplyPage() {
       }
 
       setIsSubmitted(true);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Error desconocido');
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -79,7 +116,7 @@ export default function ApplyPage() {
               textAlign: 'center',
               padding: '4rem 2rem'
             }}>
-              <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>✓</div>
+              <div style={{ fontSize: '4rem', marginBottom: '1.5rem', color: 'var(--color-gold)' }}>✓</div>
               <h1 style={{ marginBottom: '1rem' }}>Aplicación Recibida</h1>
               <p style={{ fontSize: '1.125rem', marginBottom: '2rem' }}>
                 Gracias por tu interés en Haltere Club. Hemos recibido tu aplicación 
@@ -136,10 +173,10 @@ export default function ApplyPage() {
                   justifyContent: 'center',
                   fontSize: '0.875rem',
                   fontWeight: '500',
-                  background: step >= s ? 'var(--color-gold)' : 'var(--color-gray-dark)',
+                  background: step >= s ? 'var(--color-gold)' : 'var(--color-brown-dark)',
                   color: step >= s ? 'var(--color-black)' : 'var(--color-gray)',
                   border: '1px solid',
-                  borderColor: step >= s ? 'var(--color-gold)' : 'rgba(193, 154, 107, 0.2)',
+                  borderColor: step >= s ? 'var(--color-gold)' : 'rgba(242, 187, 106, 0.2)',
                   transition: 'all 0.3s ease'
                 }}>
                   {s}
@@ -148,7 +185,7 @@ export default function ApplyPage() {
                   <div style={{
                     width: '60px',
                     height: '1px',
-                    background: step > s ? 'var(--color-gold)' : 'rgba(193, 154, 107, 0.2)',
+                    background: step > s ? 'var(--color-gold)' : 'rgba(242, 187, 106, 0.2)',
                     transition: 'all 0.3s ease'
                   }} />
                 )}
@@ -361,8 +398,8 @@ export default function ApplyPage() {
 
                 {/* Membership Info */}
                 <div style={{
-                  background: 'var(--color-gray-dark)',
-                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                  background: 'var(--color-brown-dark)',
+                  border: '1px solid rgba(242, 187, 106, 0.2)',
                   borderRadius: 'var(--radius-md)',
                   padding: '1.5rem',
                   marginTop: '2rem',
@@ -379,7 +416,7 @@ export default function ApplyPage() {
                   </p>
                   <p style={{ 
                     fontSize: '1.75rem', 
-                    fontFamily: 'var(--font-serif)',
+                    fontWeight: 600,
                     color: 'var(--color-gold)',
                     marginBottom: '0.5rem'
                   }}>
@@ -434,8 +471,11 @@ function Header() {
       <div className="container">
         <div className="header-inner">
           <Link href="/" className="logo">
-            <span className="logo-symbol">⚖</span>
-            <span>haltere</span>
+            <HaltereLogo />
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <span style={{ letterSpacing: '0.3em' }}>haltere</span>
+              <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
+            </span>
           </Link>
           
           <nav className="nav">
@@ -454,10 +494,13 @@ function Footer() {
   return (
     <footer className="footer">
       <div className="container">
-        <div style={{ marginBottom: '1rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
           <Link href="/" className="logo" style={{ justifyContent: 'center' }}>
-            <span className="logo-symbol">⚖</span>
-            <span>haltere</span>
+            <HaltereLogo />
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              <span style={{ letterSpacing: '0.3em' }}>haltere</span>
+              <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
+            </span>
           </Link>
         </div>
         <p className="footer-text">

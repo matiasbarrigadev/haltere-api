@@ -1,5 +1,38 @@
 import Link from 'next/link';
 
+// Logo SVG Component based on Brand Guidelines
+const HaltereLogo = ({ className = '', size = 'default' }: { className?: string; size?: 'default' | 'large' }) => {
+  const height = size === 'large' ? 60 : 40;
+  return (
+    <svg 
+      viewBox="0 0 100 100" 
+      height={height}
+      className={className}
+      fill="currentColor"
+      aria-label="Haltere Logo"
+    >
+      {/* Stylized H with barbell bars */}
+      <g>
+        {/* Left vertical bar with weights */}
+        <rect x="20" y="15" width="4" height="70" />
+        <rect x="15" y="20" width="14" height="8" rx="1" />
+        <rect x="15" y="72" width="14" height="8" rx="1" />
+        
+        {/* Center H connector */}
+        <rect x="24" y="45" width="52" height="4" />
+        
+        {/* Middle vertical (T of halTere) */}
+        <rect x="48" y="25" width="4" height="50" />
+        
+        {/* Right vertical bar with weights */}
+        <rect x="76" y="15" width="4" height="70" />
+        <rect x="71" y="20" width="14" height="8" rx="1" />
+        <rect x="71" y="72" width="14" height="8" rx="1" />
+      </g>
+    </svg>
+  );
+};
+
 export default function Home() {
   return (
     <>
@@ -8,8 +41,11 @@ export default function Home() {
         <div className="container">
           <div className="header-inner">
             <Link href="/" className="logo">
-              <span className="logo-symbol">⚖</span>
-              <span>haltere</span>
+              <HaltereLogo />
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span style={{ letterSpacing: '0.3em' }}>haltere</span>
+                <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
+              </span>
             </Link>
             
             <nav className="nav">
@@ -41,14 +77,14 @@ export default function Home() {
           </div>
         </div>
         
-        {/* Decorative gradient overlay */}
+        {/* Decorative gradient overlay with new brand color */}
         <div style={{
           position: 'absolute',
           right: 0,
           top: 0,
           bottom: 0,
           width: '50%',
-          background: 'radial-gradient(ellipse at right center, rgba(193, 154, 107, 0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse at right center, rgba(242, 187, 106, 0.1) 0%, transparent 70%)',
           pointerEvents: 'none'
         }} />
       </section>
@@ -103,7 +139,7 @@ export default function Home() {
 
       {/* Experience Section */}
       <section className="section" id="experiencia" style={{
-        background: 'linear-gradient(180deg, rgba(193, 154, 107, 0.03) 0%, transparent 100%)'
+        background: 'linear-gradient(180deg, rgba(242, 187, 106, 0.03) 0%, transparent 100%)'
       }}>
         <div className="container">
           <div className="section-header">
@@ -161,8 +197,8 @@ export default function Home() {
             <div style={{
               display: 'inline-block',
               padding: '2rem 3rem',
-              background: 'var(--color-gray-dark)',
-              border: '1px solid rgba(193, 154, 107, 0.3)',
+              background: 'var(--color-brown-dark)',
+              border: '1px solid rgba(242, 187, 106, 0.3)',
               borderRadius: 'var(--radius-lg)',
               marginBottom: '2rem'
             }}>
@@ -177,7 +213,7 @@ export default function Home() {
               </p>
               <p style={{ 
                 fontSize: '2.5rem', 
-                fontFamily: 'var(--font-serif)',
+                fontWeight: 600,
                 color: 'var(--color-gold)'
               }}>
                 $2.400.000 CLP
@@ -201,7 +237,7 @@ export default function Home() {
 
       {/* Clubs Section */}
       <section className="section" id="clubes" style={{
-        background: 'linear-gradient(180deg, transparent 0%, rgba(193, 154, 107, 0.03) 100%)'
+        background: 'linear-gradient(180deg, transparent 0%, rgba(242, 187, 106, 0.03) 100%)'
       }}>
         <div className="container">
           <div className="section-header">
@@ -245,7 +281,7 @@ export default function Home() {
 
       {/* CTA Section */}
       <section className="section" style={{
-        background: 'var(--color-gray-dark)',
+        background: 'var(--color-brown-dark)',
         textAlign: 'center'
       }}>
         <div className="container">
@@ -267,10 +303,13 @@ export default function Home() {
       {/* Footer */}
       <footer className="footer">
         <div className="container">
-          <div style={{ marginBottom: '2rem' }}>
+          <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
             <Link href="/" className="logo" style={{ justifyContent: 'center' }}>
-              <span className="logo-symbol">⚖</span>
-              <span>haltere</span>
+              <HaltereLogo />
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                <span style={{ letterSpacing: '0.3em' }}>haltere</span>
+                <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
+              </span>
             </Link>
           </div>
           <p className="footer-text">
