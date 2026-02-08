@@ -4,32 +4,8 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import HaltereLogo, { HaltereIconLogo } from '@/components/HaltereLogo';
 
-// Lazy load the Virtuous Circle Player
-const VirtuousCirclePlayer = dynamic(() => import('@/components/VirtuousCirclePlayer'), {
-  ssr: false,
-  loading: () => (
-    <div style={{
-      width: '100%',
-      maxWidth: '500px',
-      aspectRatio: '1',
-      margin: '0 auto',
-      background: 'rgba(242, 187, 106, 0.05)',
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <div style={{
-        width: 60,
-        height: 60,
-        borderRadius: '50%',
-        border: '2px solid rgba(242, 187, 106, 0.2)',
-        borderTopColor: '#F2BB6A',
-        animation: 'spin 1s linear infinite',
-      }} />
-    </div>
-  ),
-});
+// Import the new VirtuousCircle component
+import VirtuousCircle from '@/components/VirtuousCircle';
 
 // Lazy load the Hero Player
 const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
@@ -280,8 +256,18 @@ export default function Home() {
             margin: '0 auto',
             position: 'relative',
           }}>
-            <VirtuousCirclePlayer width={500} />
+            <VirtuousCircle width={500} />
           </div>
+          
+          <p style={{
+            textAlign: 'center',
+            fontSize: '0.85rem',
+            color: 'var(--color-gray)',
+            marginTop: '1.5rem',
+            fontStyle: 'italic',
+          }}>
+            Pasa el mouse sobre cada dimensión para conocer más
+          </p>
           
           <p style={{ 
             maxWidth: '600px', 
