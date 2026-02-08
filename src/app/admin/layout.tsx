@@ -70,6 +70,7 @@ export default function AdminLayout({
     { href: '/admin/applications', label: 'Solicitudes', icon: '📝', badge: 3 },
     { href: '/admin/members', label: 'Miembros', icon: '👥' },
     { href: '/admin/professionals', label: 'Profesionales', icon: '💼' },
+    { href: '/admin/services', label: 'Servicios', icon: '🎯' },
     { href: '/admin/bookings', label: 'Reservas', icon: '📅', badge: 6 },
     { href: '/admin/locations', label: 'Sedes', icon: '🏢' },
   ];
