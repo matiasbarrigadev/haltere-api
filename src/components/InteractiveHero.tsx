@@ -27,6 +27,13 @@ interface OrbitalRing {
   baseAngle: number;
 }
 
+// Mouse trail point
+interface TrailPoint {
+  x: number;
+  y: number;
+  age: number;
+}
+
 // Haltere official logo SVG component - exact brand recreation
 const HaltereLogoAnimated: React.FC<{ size: number }> = ({ size }) => (
   <svg 
@@ -39,15 +46,6 @@ const HaltereLogoAnimated: React.FC<{ size: number }> = ({ size }) => (
       filter: 'drop-shadow(0 0 30px rgba(242, 187, 106, 0.4))',
     }}
   >
-    <defs>
-      <clipPath id="leftClip">
-        <rect x="0" y="12" width="30" height="76" />
-      </clipPath>
-      <clipPath id="rightClip">
-        <rect x="70" y="12" width="30" height="76" />
-      </clipPath>
-    </defs>
-
     {/* Left arc - partial circle following outer edge */}
     <path 
       d="M18 12 C8 20 5 35 5 50 C5 65 8 80 18 88"
@@ -59,37 +57,25 @@ const HaltereLogoAnimated: React.FC<{ size: number }> = ({ size }) => (
     
     {/* Left H barbell */}
     <g>
-      {/* Outer vertical following arc */}
       <rect x="18" y="15" width="4" height="70" rx="2" fill="#F2BB6A"/>
-      {/* Inner vertical */}
       <rect x="28" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      {/* Top connector */}
       <rect x="18" y="28" width="14" height="4" rx="1" fill="#F2BB6A"/>
-      {/* Bottom connector */}
       <rect x="18" y="68" width="14" height="4" rx="1" fill="#F2BB6A"/>
     </g>
     
     {/* Center H barbell */}
     <g>
-      {/* Left vertical */}
       <rect x="40" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      {/* Right vertical */}
       <rect x="56" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      {/* Top connector */}
       <rect x="40" y="28" width="20" height="4" rx="1" fill="#F2BB6A"/>
-      {/* Bottom connector */}
       <rect x="40" y="68" width="20" height="4" rx="1" fill="#F2BB6A"/>
     </g>
     
     {/* Right H barbell */}
     <g>
-      {/* Inner vertical */}
       <rect x="68" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      {/* Outer vertical following arc */}
       <rect x="78" y="15" width="4" height="70" rx="2" fill="#F2BB6A"/>
-      {/* Top connector */}
       <rect x="68" y="28" width="14" height="4" rx="1" fill="#F2BB6A"/>
-      {/* Bottom connector */}
       <rect x="68" y="68" width="14" height="4" rx="1" fill="#F2BB6A"/>
     </g>
     
@@ -104,13 +90,18 @@ const HaltereLogoAnimated: React.FC<{ size: number }> = ({ size }) => (
   </svg>
 );
 
-export default function InteractiveHero() {
+interface InteractiveHeroProps {
+  onScrollDown?: () => void;
+}
+
+export default function InteractiveHero({ onScrollDown }: InteractiveHeroProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
   const particlesRef = useRef<Particle[]>([]);
+  const mouseTrailRef = useRef<TrailPoint[]>([]);
   const animationFrameRef = useRef<number>(0);
   const timeRef = useRef(0);
 
@@ -161,14 +152,21 @@ export default function InteractiveHero() {
     return () => window.removeEventListener('resize', handleResize);
   }, [initParticles]);
 
-  // Handle mouse movement
+  // Handle mouse movement with trail
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      setMousePos({
+      const newPos = {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
-      });
+      };
+      setMousePos(newPos);
+      
+      // Add to trail
+      mouseTrailRef.current.push({ ...newPos, age: 0 });
+      if (mouseTrailRef.current.length > 30) {
+        mouseTrailRef.current.shift();
+      }
     }
   }, []);
 
@@ -184,7 +182,7 @@ export default function InteractiveHero() {
     const centerY = dimensions.height / 2;
 
     const animate = () => {
-      timeRef.current += 16; // ~60fps
+      timeRef.current += 16;
       ctx.clearRect(0, 0, dimensions.width, dimensions.height);
 
       // Draw gradient background
@@ -198,6 +196,58 @@ export default function InteractiveHero() {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, dimensions.width, dimensions.height);
 
+      // Draw mouse trail
+      if (isHovering && mouseTrailRef.current.length > 1) {
+        ctx.beginPath();
+        ctx.moveTo(mouseTrailRef.current[0].x, mouseTrailRef.current[0].y);
+        
+        for (let i = 1; i < mouseTrailRef.current.length; i++) {
+          const point = mouseTrailRef.current[i];
+          const prevPoint = mouseTrailRef.current[i - 1];
+          
+          // Smooth curve
+          const midX = (point.x + prevPoint.x) / 2;
+          const midY = (point.y + prevPoint.y) / 2;
+          ctx.quadraticCurveTo(prevPoint.x, prevPoint.y, midX, midY);
+          
+          // Age the point
+          mouseTrailRef.current[i].age += 0.05;
+        }
+        
+        // Draw trail with gradient opacity
+        const trailGradient = ctx.createLinearGradient(
+          mouseTrailRef.current[0].x,
+          mouseTrailRef.current[0].y,
+          mouseTrailRef.current[mouseTrailRef.current.length - 1].x,
+          mouseTrailRef.current[mouseTrailRef.current.length - 1].y
+        );
+        trailGradient.addColorStop(0, 'rgba(242, 187, 106, 0)');
+        trailGradient.addColorStop(0.5, 'rgba(242, 187, 106, 0.15)');
+        trailGradient.addColorStop(1, 'rgba(242, 187, 106, 0.3)');
+        
+        ctx.strokeStyle = trailGradient;
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        
+        // Draw glow at cursor position
+        const cursorGlow = ctx.createRadialGradient(
+          mousePos.x, mousePos.y, 0,
+          mousePos.x, mousePos.y, 50
+        );
+        cursorGlow.addColorStop(0, 'rgba(242, 187, 106, 0.15)');
+        cursorGlow.addColorStop(0.5, 'rgba(242, 187, 106, 0.05)');
+        cursorGlow.addColorStop(1, 'rgba(242, 187, 106, 0)');
+        ctx.beginPath();
+        ctx.arc(mousePos.x, mousePos.y, 50, 0, Math.PI * 2);
+        ctx.fillStyle = cursorGlow;
+        ctx.fill();
+        
+        // Remove old trail points
+        mouseTrailRef.current = mouseTrailRef.current.filter(p => p.age < 1);
+      }
+
       // Calculate mouse influence
       const mouseInfluence = isHovering ? 1 : 0;
       const dx = mousePos.x - centerX;
@@ -206,31 +256,27 @@ export default function InteractiveHero() {
       const mouseDistance = Math.sqrt(dx * dx + dy * dy);
 
       // Draw orbital rings with dots
-      orbitalRings.forEach((ring, ringIndex) => {
+      orbitalRings.forEach((ring) => {
         const time = timeRef.current * ring.speed * ring.direction;
         
         for (let i = 0; i < ring.dotCount; i++) {
           const baseAngle = (i / ring.dotCount) * Math.PI * 2 + ring.baseAngle;
           let angle = baseAngle + time;
           
-          // Mouse interaction - dots move away from cursor
           if (mouseInfluence > 0 && mouseDistance < ring.radius + 100) {
             const angleDiff = angle - mouseAngle;
             const repelStrength = Math.max(0, 1 - mouseDistance / (ring.radius + 100));
             angle += Math.sin(angleDiff) * repelStrength * 0.3 * mouseInfluence;
           }
 
-          // Add subtle wave motion
           const waveOffset = Math.sin(time * 2 + i * 0.1) * 5;
           const currentRadius = ring.radius + waveOffset;
 
           const x = centerX + Math.cos(angle) * currentRadius;
           const y = centerY + Math.sin(angle) * currentRadius;
 
-          // Pulse opacity based on position
           const pulseOpacity = ring.opacity * (0.7 + 0.3 * Math.sin(time * 3 + i * 0.2));
           
-          // Glow effect
           const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, ring.dotSize * 4);
           glowGradient.addColorStop(0, `rgba(242, 187, 106, ${pulseOpacity})`);
           glowGradient.addColorStop(1, 'rgba(242, 187, 106, 0)');
@@ -240,14 +286,12 @@ export default function InteractiveHero() {
           ctx.fillStyle = glowGradient;
           ctx.fill();
 
-          // Core dot
           ctx.beginPath();
           ctx.arc(x, y, ring.dotSize, 0, Math.PI * 2);
           ctx.fillStyle = `rgba(242, 187, 106, ${pulseOpacity * 1.5})`;
           ctx.fill();
         }
 
-        // Draw ring path (subtle)
         ctx.beginPath();
         ctx.arc(centerX, centerY, ring.radius, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(242, 187, 106, ${ring.opacity * 0.15})`;
@@ -257,17 +301,14 @@ export default function InteractiveHero() {
 
       // Draw floating particles
       particlesRef.current.forEach((particle) => {
-        // Update position with subtle drift
         particle.x += particle.vx;
         particle.y += particle.vy;
 
-        // Boundary check with wrapping
         if (particle.x < 0) particle.x = dimensions.width;
         if (particle.x > dimensions.width) particle.x = 0;
         if (particle.y < 0) particle.y = dimensions.height;
         if (particle.y > dimensions.height) particle.y = 0;
 
-        // Mouse repulsion effect
         if (isHovering) {
           const pdx = particle.x - mousePos.x;
           const pdy = particle.y - mousePos.y;
@@ -281,7 +322,6 @@ export default function InteractiveHero() {
           }
         }
 
-        // Draw particle with glow
         const particleGlow = ctx.createRadialGradient(
           particle.x, particle.y, 0,
           particle.x, particle.y, particle.radius * 3
@@ -320,6 +360,14 @@ export default function InteractiveHero() {
     };
   }, [dimensions, mousePos, isHovering, orbitalRings]);
 
+  const handleScrollClick = () => {
+    if (onScrollDown) {
+      onScrollDown();
+    } else {
+      window.scrollTo({ top: window.innerHeight, behavior: 'smooth' });
+    }
+  };
+
   return (
     <div
       ref={containerRef}
@@ -329,8 +377,8 @@ export default function InteractiveHero() {
       onMouseLeave={() => setIsHovering(false)}
       style={{
         position: 'relative',
-        width: '100vw',
-        height: '100vh',
+        width: '100%',
+        minHeight: '100vh',
         overflow: 'hidden',
         cursor: 'default',
       }}
@@ -501,8 +549,9 @@ export default function InteractiveHero() {
           </svg>
         </Link>
 
-        {/* Scroll hint */}
-        <div
+        {/* Scroll hint - now clickable */}
+        <button
+          onClick={handleScrollClick}
           style={{
             position: 'absolute',
             bottom: '2rem',
@@ -514,6 +563,10 @@ export default function InteractiveHero() {
             gap: '0.5rem',
             animation: 'fadeInUp 1s ease-out 1.2s forwards, bounce 2s ease-in-out infinite 2s',
             opacity: 0,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
           }}
         >
           <span
@@ -524,13 +577,12 @@ export default function InteractiveHero() {
               textTransform: 'uppercase',
             }}
           >
-            Interactúa
+            Descubre más
           </span>
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="rgba(242, 187, 106, 0.4)" strokeWidth="1.5">
-            <circle cx="10" cy="10" r="8" />
-            <path d="M10 6v4m0 0l-2-2m2 2l2-2" />
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(242, 187, 106, 0.5)" strokeWidth="2">
+            <path d="M12 5v14M5 12l7 7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-        </div>
+        </button>
       </div>
 
       {/* CSS Animations */}
@@ -577,16 +629,8 @@ export default function InteractiveHero() {
           }
         }
 
-        @keyframes logoSpin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
-        }
-
-        .interactive-hero a:focus {
+        .interactive-hero a:focus,
+        .interactive-hero button:focus {
           outline: 2px solid #F2BB6A;
           outline-offset: 4px;
         }
