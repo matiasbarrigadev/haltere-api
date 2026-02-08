@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { stripe, MEMBERSHIP_PRICE, BONUS_PACKAGES, PackageType } from '@/lib/stripe';
+import { getStripe, MEMBERSHIP_PRICE, BONUS_PACKAGES, PackageType } from '@/lib/stripe';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export async function POST(request: Request) {
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 
     if (type === 'membership') {
       // Create membership payment session
-      session = await stripe.checkout.sessions.create({
+      session = await getStripe().checkout.sessions.create({
         payment_method_types: ['card'],
         customer_email: user.email,
         line_items: [
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
       const pkg = BONUS_PACKAGES[package_type as PackageType];
 
-      session = await stripe.checkout.sessions.create({
+      session = await getStripe().checkout.sessions.create({
         payment_method_types: ['card'],
         customer_email: user.email,
         line_items: [
