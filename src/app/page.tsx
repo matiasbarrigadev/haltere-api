@@ -4,6 +4,33 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import HaltereLogo, { HaltereIconLogo } from '@/components/HaltereLogo';
 
+// Lazy load the Virtuous Circle Player
+const VirtuousCirclePlayer = dynamic(() => import('@/components/VirtuousCirclePlayer'), {
+  ssr: false,
+  loading: () => (
+    <div style={{
+      width: '100%',
+      maxWidth: '500px',
+      aspectRatio: '1',
+      margin: '0 auto',
+      background: 'rgba(242, 187, 106, 0.05)',
+      borderRadius: '50%',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 60,
+        height: 60,
+        borderRadius: '50%',
+        border: '2px solid rgba(242, 187, 106, 0.2)',
+        borderTopColor: '#F2BB6A',
+        animation: 'spin 1s linear infinite',
+      }} />
+    </div>
+  ),
+});
+
 // Lazy load the Hero Player
 const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
   ssr: false,
@@ -221,90 +248,53 @@ export default function Home() {
         </div>
       </section>
 
-      {/* 6 Dimensiones del Bienestar */}
-      <section className="section" id="bienestar">
+      {/* Círculo Virtuoso del Bienestar - Animación Interactiva */}
+      <section className="section" id="bienestar" style={{
+        background: 'radial-gradient(ellipse at center, rgba(242, 187, 106, 0.03) 0%, transparent 70%)',
+        paddingTop: '4rem',
+        paddingBottom: '4rem',
+      }}>
         <div className="container">
           <div className="section-header">
-            <p className="section-subtitle">Círculo Virtuoso</p>
+            <p className="section-subtitle">El Círculo Virtuoso</p>
             <h2>6 Dimensiones del Bienestar</h2>
-            <p style={{ maxWidth: '600px', margin: '1rem auto 0', color: 'var(--color-gray)' }}>
-              Satisfacer las 6 dimensiones del bienestar que conducen a la autorrealización
-            </p>
           </div>
           
-          <div className="grid grid-3" style={{ gap: '1.5rem' }}>
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #F2BB6A'
-            }}>
-              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Mejorar la Salud
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Programas preventivos y recuperación activa
-              </p>
-            </div>
-            
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #D4A85A'
-            }}>
-              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Mejorar el Aspecto
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Transformación física guiada por profesionales
-              </p>
-            </div>
-            
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #B8956A'
-            }}>
-              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Mejorar la Nutrición
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Asesoría nutricional personalizada
-              </p>
-            </div>
-            
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #9A8070'
-            }}>
-              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Dormir Mejor
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Protocolos de recuperación y descanso
-              </p>
-            </div>
-            
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #7A6A60'
-            }}>
-              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Concentración Plena
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Mindfulness y técnicas de enfoque mental
-              </p>
-            </div>
-            
-            <div className="card" style={{ 
-              padding: '1.5rem',
-              borderLeft: '3px solid #5A5050'
-            }}>
-              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
-                Mejor Forma Física
-              </h3>
-              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
-                Entrenamiento funcional de precisión
-              </p>
-            </div>
+          <p style={{ 
+            maxWidth: '700px', 
+            margin: '0 auto 3rem', 
+            textAlign: 'center',
+            fontSize: '1.15rem',
+            lineHeight: '1.8',
+            fontStyle: 'italic',
+            color: 'var(--color-cream)'
+          }}>
+            Diseñamos comunidades exclusivas en pequeños núcleos urbanos con un interés 
+            común en ser parte del <span style={{ color: 'var(--color-gold)' }}>círculo virtuoso del bienestar</span>, 
+            a través de espacios, productos y servicios singulares y atemporales.
+          </p>
+          
+          {/* Animated Virtuous Circle */}
+          <div style={{ 
+            maxWidth: '500px', 
+            margin: '0 auto',
+            position: 'relative',
+          }}>
+            <VirtuousCirclePlayer width={500} />
           </div>
+          
+          <p style={{ 
+            maxWidth: '600px', 
+            margin: '3rem auto 0', 
+            textAlign: 'center',
+            fontSize: '1rem',
+            color: 'var(--color-gray)',
+            lineHeight: '1.7'
+          }}>
+            Satisfacer las 6 dimensiones del bienestar que conducen a la autorrealización: 
+            mejorar la salud, dormir mejor, plena concentración, mejorar el aspecto, 
+            mejorar la nutrición y mejor forma física.
+          </p>
         </div>
       </section>
 
