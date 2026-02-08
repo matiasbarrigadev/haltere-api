@@ -1,4 +1,31 @@
+'use client';
+
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+// Lazy load the Hero Player
+const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
+  ssr: false,
+  loading: () => (
+    <div style={{
+      width: '100%',
+      height: '500px',
+      background: 'linear-gradient(180deg, #1a1816 0%, #0d0c0b 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    }}>
+      <div style={{
+        width: 60,
+        height: 60,
+        borderRadius: '50%',
+        border: '2px solid rgba(242, 187, 106, 0.2)',
+        borderTopColor: '#F2BB6A',
+        animation: 'spin 1s linear infinite',
+      }} />
+    </div>
+  ),
+});
 
 // Logo SVG Component based on Brand Guidelines
 const HaltereLogo = ({ className = '', size = 'default' }: { className?: string; size?: 'default' | 'large' }) => {
@@ -58,10 +85,29 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="hero">
-        <div className="container">
-          <div className="hero-content animate-fadeInUp">
+      {/* Hero Section with Remotion Animation */}
+      <section className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
+        {/* Remotion Animation Background */}
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 0,
+        }}>
+          <HeroPlayer />
+        </div>
+        
+        {/* Content Overlay */}
+        <div className="container" style={{ position: 'relative', zIndex: 10 }}>
+          <div className="hero-content animate-fadeInUp" style={{ 
+            backdropFilter: 'blur(2px)',
+            background: 'rgba(0,0,0,0.3)',
+            padding: '3rem',
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid rgba(242, 187, 106, 0.1)',
+          }}>
             <h1 className="hero-title">
               Club Silencioso<br />del Bienestar
             </h1>
@@ -71,22 +117,14 @@ export default function Home() {
               pertenencia a través de valores compartidos. A la vez, garantizamos 
               privacidad, excelencia y discreción en cada aspecto de nuestra experiencia.
             </p>
-            <Link href="/apply" className="btn btn-large">
+            <Link href="/apply" className="btn btn-large" style={{
+              background: 'var(--color-gold)',
+              color: 'var(--color-black)',
+            }}>
               Aplicar a membresía
             </Link>
           </div>
         </div>
-        
-        {/* Decorative gradient overlay with new brand color */}
-        <div style={{
-          position: 'absolute',
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: '50%',
-          background: 'radial-gradient(ellipse at right center, rgba(242, 187, 106, 0.1) 0%, transparent 70%)',
-          pointerEvents: 'none'
-        }} />
       </section>
 
       {/* Manifesto Section */}
