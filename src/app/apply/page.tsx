@@ -1,405 +1,469 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-
-interface ApplicationForm {
-  full_name: string;
-  email: string;
-  phone: string;
-  occupation: string;
-  linkedin_url: string;
-  referral_source: string;
-  referral_name: string;
-  fitness_goals: string;
-  preferred_location: string;
-  schedule_preference: string;
-  additional_notes: string;
-}
 
 export default function ApplyPage() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
   
-  const [form, setForm] = useState<ApplicationForm>({
-    full_name: '',
+  const [formData, setFormData] = useState({
+    // Step 1 - Personal
+    fullName: '',
     email: '',
     phone: '',
     occupation: '',
-    linkedin_url: '',
-    referral_source: '',
-    referral_name: '',
-    fitness_goals: '',
-    preferred_location: '',
-    schedule_preference: '',
-    additional_notes: ''
+    linkedin: '',
+    
+    // Step 2 - Reference
+    referralSource: '',
+    referredBy: '',
+    goals: '',
+    
+    // Step 3 - Preferences
+    preferredLocation: '',
+    preferredSchedule: '',
+    additionalComments: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const handleNext = () => {
+    setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBack = () => {
+    setStep(step - 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
     setError('');
 
     try {
-      const res = await fetch('/api/apply', {
+      const response = await fetch('/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Error al enviar solicitud');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al enviar la aplicación');
       }
 
-      setSuccess(true);
+      setIsSubmitted(true);
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  if (success) {
+  if (isSubmitted) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-        <div className="max-w-md text-center">
-          <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-            <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
+      <>
+        <Header />
+        <main style={{ minHeight: '100vh', paddingTop: '120px' }}>
+          <div className="container">
+            <div style={{ 
+              maxWidth: '600px', 
+              margin: '0 auto', 
+              textAlign: 'center',
+              padding: '4rem 2rem'
+            }}>
+              <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>✓</div>
+              <h1 style={{ marginBottom: '1rem' }}>Aplicación Recibida</h1>
+              <p style={{ fontSize: '1.125rem', marginBottom: '2rem' }}>
+                Gracias por tu interés en Haltere Club. Hemos recibido tu aplicación 
+                y nuestro equipo la revisará en los próximos días. Te contactaremos 
+                al email <strong style={{ color: 'var(--color-gold)' }}>{formData.email}</strong> para 
+                continuar con el proceso de admisión.
+              </p>
+              <Link href="/" className="btn">
+                Volver al inicio
+              </Link>
+            </div>
           </div>
-          <h1 className="text-3xl font-bold mb-4">¡Solicitud Enviada!</h1>
-          <p className="text-gray-400 mb-8">
-            Gracias por tu interés en Club Haltere. Nuestro equipo revisará tu solicitud y te contactaremos 
-            en las próximas 48-72 horas hábiles.
-          </p>
-          <p className="text-sm text-gray-500">
-            Revisa tu correo electrónico para más información.
-          </p>
-        </div>
-      </div>
+        </main>
+        <Footer />
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="border-b border-gray-800">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold tracking-tight">CLUB HALTERE</h1>
-          <p className="text-gray-400 text-sm mt-1">Exclusive Wellness Club</p>
-        </div>
-      </header>
+    <>
+      <Header />
+      
+      <main style={{ minHeight: '100vh', paddingTop: '120px', paddingBottom: '4rem' }}>
+        <div className="container">
+          {/* Header */}
+          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <p className="section-subtitle">Proceso de Admisión</p>
+            <h1>Aplicar a Membresía</h1>
+            <p style={{ marginTop: '1rem', maxWidth: '500px', margin: '1rem auto 0' }}>
+              Completa el formulario y nuestro equipo evaluará tu perfil 
+              para unirte a nuestra comunidad exclusiva.
+            </p>
+          </div>
 
-      {/* Progress Steps */}
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-center space-x-4 mb-12">
-          {[1, 2, 3].map((s) => (
-            <div key={s} className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                step >= s ? 'bg-white text-black' : 'bg-gray-800 text-gray-500'
-              }`}>
-                {s}
+          {/* Progress Steps */}
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '1rem',
+            marginBottom: '3rem'
+          }}>
+            {[1, 2, 3].map((s) => (
+              <div key={s} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  background: step >= s ? 'var(--color-gold)' : 'var(--color-gray-dark)',
+                  color: step >= s ? 'var(--color-black)' : 'var(--color-gray)',
+                  border: '1px solid',
+                  borderColor: step >= s ? 'var(--color-gold)' : 'rgba(193, 154, 107, 0.2)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  {s}
+                </div>
+                {s < 3 && (
+                  <div style={{
+                    width: '60px',
+                    height: '1px',
+                    background: step > s ? 'var(--color-gold)' : 'rgba(193, 154, 107, 0.2)',
+                    transition: 'all 0.3s ease'
+                  }} />
+                )}
               </div>
-              {s < 3 && <div className={`w-16 h-0.5 ${step > s ? 'bg-white' : 'bg-gray-800'}`} />}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        <form onSubmit={handleSubmit}>
-          {/* Step 1: Personal Info */}
-          {step === 1 && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold">Información Personal</h2>
-                <p className="text-gray-400 mt-2">Cuéntanos sobre ti</p>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Nombre Completo *
-                  </label>
+          {/* Form */}
+          <div className="form">
+            {step === 1 && (
+              <div className="animate-fadeInUp">
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+                  Información Personal
+                </h2>
+                
+                <div className="form-group">
+                  <label className="form-label">Nombre completo *</label>
                   <input
                     type="text"
-                    name="full_name"
-                    value={form.full_name}
+                    name="fullName"
+                    value={formData.fullName}
                     onChange={handleChange}
+                    className="form-input"
+                    placeholder="Tu nombre completo"
                     required
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                    placeholder="Juan Pérez"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Email *
-                  </label>
+                <div className="form-group">
+                  <label className="form-label">Email *</label>
                   <input
                     type="email"
                     name="email"
-                    value={form.email}
+                    value={formData.email}
                     onChange={handleChange}
+                    className="form-input"
+                    placeholder="tu@email.com"
                     required
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                    placeholder="juan@empresa.com"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Teléfono *
-                  </label>
+                <div className="form-group">
+                  <label className="form-label">Teléfono *</label>
                   <input
                     type="tel"
                     name="phone"
-                    value={form.phone}
+                    value={formData.phone}
                     onChange={handleChange}
-                    required
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
+                    className="form-input"
                     placeholder="+56 9 1234 5678"
+                    required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Ocupación *
-                  </label>
+                <div className="form-group">
+                  <label className="form-label">Ocupación</label>
                   <input
                     type="text"
                     name="occupation"
-                    value={form.occupation}
+                    value={formData.occupation}
                     onChange={handleChange}
-                    required
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                    placeholder="CEO / Empresario / Médico"
+                    className="form-input"
+                    placeholder="Tu profesión u ocupación actual"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  LinkedIn (opcional)
-                </label>
-                <input
-                  type="url"
-                  name="linkedin_url"
-                  value={form.linkedin_url}
-                  onChange={handleChange}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                  placeholder="https://linkedin.com/in/tuperfil"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                disabled={!form.full_name || !form.email || !form.phone || !form.occupation}
-                className="w-full bg-white text-black font-semibold py-4 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Continuar
-              </button>
-            </div>
-          )}
-
-          {/* Step 2: Referral & Interests */}
-          {step === 2 && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold">Referencia y Objetivos</h2>
-                <p className="text-gray-400 mt-2">Ayúdanos a conocerte mejor</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  ¿Cómo supiste de Club Haltere? *
-                </label>
-                <select
-                  name="referral_source"
-                  value={form.referral_source}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                >
-                  <option value="">Selecciona una opción</option>
-                  <option value="member_referral">Recomendación de un miembro</option>
-                  <option value="social_media">Redes sociales</option>
-                  <option value="google">Búsqueda en Google</option>
-                  <option value="event">Evento o conferencia</option>
-                  <option value="press">Prensa o medios</option>
-                  <option value="other">Otro</option>
-                </select>
-              </div>
-
-              {form.referral_source === 'member_referral' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Nombre del miembro que te refirió
-                  </label>
+                <div className="form-group">
+                  <label className="form-label">LinkedIn (opcional)</label>
                   <input
-                    type="text"
-                    name="referral_name"
-                    value={form.referral_name}
+                    type="url"
+                    name="linkedin"
+                    value={formData.linkedin}
                     onChange={handleChange}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                    placeholder="Nombre del miembro"
+                    className="form-input"
+                    placeholder="https://linkedin.com/in/tu-perfil"
                   />
                 </div>
-              )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  ¿Cuáles son tus objetivos de bienestar? *
-                </label>
-                <textarea
-                  name="fitness_goals"
-                  value={form.fitness_goals}
-                  onChange={handleChange}
-                  required
-                  rows={4}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent resize-none"
-                  placeholder="Describe qué buscas lograr con tu membresía..."
-                />
-              </div>
-
-              <div className="flex space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="flex-1 bg-gray-800 text-white font-semibold py-4 rounded-lg hover:bg-gray-700 transition"
-                >
-                  Atrás
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  disabled={!form.referral_source || !form.fitness_goals}
-                  className="flex-1 bg-white text-black font-semibold py-4 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Continuar
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Preferences & Submit */}
-          {step === 3 && (
-            <div className="space-y-6">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold">Preferencias</h2>
-                <p className="text-gray-400 mt-2">Última información antes de enviar</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Sede de preferencia *
-                </label>
-                <select
-                  name="preferred_location"
-                  value={form.preferred_location}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                >
-                  <option value="">Selecciona una sede</option>
-                  <option value="santiago-centro">Santiago Centro (24/7)</option>
-                  <option value="las-condes">Las Condes (24/7)</option>
-                  <option value="vitacura">Vitacura (6AM - 11PM)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Horarios de preferencia *
-                </label>
-                <select
-                  name="schedule_preference"
-                  value={form.schedule_preference}
-                  onChange={handleChange}
-                  required
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent"
-                >
-                  <option value="">Selecciona tu horario preferido</option>
-                  <option value="early_morning">Madrugada (4AM - 7AM)</option>
-                  <option value="morning">Mañana (7AM - 12PM)</option>
-                  <option value="afternoon">Tarde (12PM - 6PM)</option>
-                  <option value="evening">Noche (6PM - 10PM)</option>
-                  <option value="late_night">Noche tardía (10PM - 4AM)</option>
-                  <option value="flexible">Flexible</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Notas adicionales (opcional)
-                </label>
-                <textarea
-                  name="additional_notes"
-                  value={form.additional_notes}
-                  onChange={handleChange}
-                  rows={3}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 focus:ring-2 focus:ring-white focus:border-transparent resize-none"
-                  placeholder="¿Hay algo más que debamos saber?"
-                />
-              </div>
-
-              {/* Membership Fee Info */}
-              <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 mt-8">
-                <h3 className="text-lg font-semibold mb-2">Cuota de Membresía</h3>
-                <p className="text-gray-400 text-sm mb-4">
-                  Una vez aprobada tu solicitud, se te enviará un enlace de pago para activar tu membresía.
-                </p>
-                <div className="flex items-baseline">
-                  <span className="text-3xl font-bold">$2.400.000</span>
-                  <span className="text-gray-400 ml-2">CLP / año</span>
+                <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                  <button 
+                    type="button" 
+                    onClick={handleNext}
+                    className="btn btn-primary btn-large"
+                    disabled={!formData.fullName || !formData.email || !formData.phone}
+                  >
+                    Continuar
+                  </button>
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Incluye acceso 24/7 a todas las sedes + beneficios exclusivos
-                </p>
               </div>
+            )}
 
-              {error && (
-                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
-                  {error}
+            {step === 2 && (
+              <div className="animate-fadeInUp">
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+                  Referencia y Objetivos
+                </h2>
+                
+                <div className="form-group">
+                  <label className="form-label">¿Cómo conociste Haltere Club? *</label>
+                  <select
+                    name="referralSource"
+                    value={formData.referralSource}
+                    onChange={handleChange}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Selecciona una opción</option>
+                    <option value="member_referral">Recomendación de un socio</option>
+                    <option value="social_media">Redes sociales</option>
+                    <option value="google">Búsqueda en Google</option>
+                    <option value="event">Evento o networking</option>
+                    <option value="press">Prensa o medios</option>
+                    <option value="other">Otro</option>
+                  </select>
                 </div>
-              )}
 
-              <div className="flex space-x-4">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="flex-1 bg-gray-800 text-white font-semibold py-4 rounded-lg hover:bg-gray-700 transition"
-                >
-                  Atrás
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading || !form.preferred_location || !form.schedule_preference}
-                  className="flex-1 bg-white text-black font-semibold py-4 rounded-lg hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Enviando...' : 'Enviar Solicitud'}
-                </button>
+                {formData.referralSource === 'member_referral' && (
+                  <div className="form-group">
+                    <label className="form-label">¿Quién te refirió?</label>
+                    <input
+                      type="text"
+                      name="referredBy"
+                      value={formData.referredBy}
+                      onChange={handleChange}
+                      className="form-input"
+                      placeholder="Nombre del socio que te refirió"
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">¿Cuáles son tus objetivos de bienestar? *</label>
+                  <textarea
+                    name="goals"
+                    value={formData.goals}
+                    onChange={handleChange}
+                    className="form-textarea"
+                    placeholder="Cuéntanos qué buscas lograr con tu entrenamiento y bienestar..."
+                    required
+                  />
+                </div>
+
+                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                  <button type="button" onClick={handleBack} className="btn">
+                    Atrás
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleNext}
+                    className="btn btn-primary"
+                    disabled={!formData.referralSource || !formData.goals}
+                  >
+                    Continuar
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </form>
-      </div>
+            )}
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800 mt-auto">
-        <div className="max-w-4xl mx-auto px-4 py-6 text-center text-gray-500 text-sm">
-          <p>© 2026 Club Haltere. Todos los derechos reservados.</p>
+            {step === 3 && (
+              <div className="animate-fadeInUp">
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+                  Preferencias
+                </h2>
+                
+                <div className="form-group">
+                  <label className="form-label">Sede preferida *</label>
+                  <select
+                    name="preferredLocation"
+                    value={formData.preferredLocation}
+                    onChange={handleChange}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Selecciona una sede</option>
+                    <option value="vitacura">Vitacura</option>
+                    <option value="lo_barnechea">Lo Barnechea (2026)</option>
+                    <option value="flexible">Sin preferencia / Flexible</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Horario preferido de entrenamiento *</label>
+                  <select
+                    name="preferredSchedule"
+                    value={formData.preferredSchedule}
+                    onChange={handleChange}
+                    className="form-select"
+                    required
+                  >
+                    <option value="">Selecciona un horario</option>
+                    <option value="early_morning">Muy temprano (5:00 - 7:00)</option>
+                    <option value="morning">Mañana (7:00 - 12:00)</option>
+                    <option value="afternoon">Tarde (12:00 - 18:00)</option>
+                    <option value="evening">Noche (18:00 - 22:00)</option>
+                    <option value="late_night">Nocturno (22:00 - 5:00)</option>
+                    <option value="flexible">Flexible</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Comentarios adicionales</label>
+                  <textarea
+                    name="additionalComments"
+                    value={formData.additionalComments}
+                    onChange={handleChange}
+                    className="form-textarea"
+                    placeholder="¿Hay algo más que quieras que sepamos sobre ti?"
+                  />
+                </div>
+
+                {/* Membership Info */}
+                <div style={{
+                  background: 'var(--color-gray-dark)',
+                  border: '1px solid rgba(193, 154, 107, 0.2)',
+                  borderRadius: 'var(--radius-md)',
+                  padding: '1.5rem',
+                  marginTop: '2rem',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ 
+                    fontSize: '0.75rem', 
+                    letterSpacing: '0.1em', 
+                    textTransform: 'uppercase',
+                    color: 'var(--color-gold)',
+                    marginBottom: '0.5rem'
+                  }}>
+                    Membresía Anual
+                  </p>
+                  <p style={{ 
+                    fontSize: '1.75rem', 
+                    fontFamily: 'var(--font-serif)',
+                    color: 'var(--color-gold)',
+                    marginBottom: '0.5rem'
+                  }}>
+                    $2.400.000 CLP
+                  </p>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
+                    Incluye acceso 24/7 a todas las sedes. Bonos se adquieren por separado.
+                  </p>
+                </div>
+
+                {error && (
+                  <div style={{
+                    background: 'rgba(220, 53, 69, 0.1)',
+                    border: '1px solid rgba(220, 53, 69, 0.3)',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '1rem',
+                    marginTop: '1rem',
+                    color: '#dc3545',
+                    textAlign: 'center'
+                  }}>
+                    {error}
+                  </div>
+                )}
+
+                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
+                  <button type="button" onClick={handleBack} className="btn">
+                    Atrás
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleSubmit}
+                    className="btn btn-primary"
+                    disabled={!formData.preferredLocation || !formData.preferredSchedule || isSubmitting}
+                  >
+                    {isSubmitting ? 'Enviando...' : 'Enviar Aplicación'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </footer>
-    </div>
+      </main>
+
+      <Footer />
+    </>
+  );
+}
+
+function Header() {
+  return (
+    <header className="header">
+      <div className="container">
+        <div className="header-inner">
+          <Link href="/" className="logo">
+            <span className="logo-symbol">⚖</span>
+            <span>haltere</span>
+          </Link>
+          
+          <nav className="nav">
+            <Link href="/#manifesto" className="nav-link">Manifesto</Link>
+            <Link href="/#experiencia" className="nav-link">Experiencia</Link>
+            <Link href="/#clubes" className="nav-link">Clubes</Link>
+            <Link href="/apply" className="btn btn-primary">Ser socio</Link>
+          </nav>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="footer">
+      <div className="container">
+        <div style={{ marginBottom: '1rem' }}>
+          <Link href="/" className="logo" style={{ justifyContent: 'center' }}>
+            <span className="logo-symbol">⚖</span>
+            <span>haltere</span>
+          </Link>
+        </div>
+        <p className="footer-text">
+          © 2026 Haltere Club. Todos los derechos reservados.
+        </p>
+      </div>
+    </footer>
   );
 }
