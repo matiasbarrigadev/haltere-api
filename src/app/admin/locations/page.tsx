@@ -7,223 +7,312 @@ interface Location {
   name: string;
   address: string;
   city: string;
-  phone: string;
-  email: string;
+  status: 'active' | 'maintenance' | 'closed';
   capacity: number;
-  currentMembers: number;
-  services: string[];
-  schedule: string;
-  status: 'active' | 'maintenance' | 'inactive';
-  imageUrl?: string;
+  current_members: number;
+  amenities: string[];
+  hours: string;
+  contact_phone: string;
+  image_url?: string;
 }
 
-export default function AdminLocationsPage() {
-  const [isLoading, setIsLoading] = useState(true);
+// Mock data para demostración
+const mockLocations: Location[] = [
+  {
+    id: '1',
+    name: 'Haltere Las Condes',
+    address: 'Av. Apoquindo 4500, Piso 12',
+    city: 'Las Condes',
+    status: 'active',
+    capacity: 15,
+    current_members: 12,
+    amenities: ['Gym Premium', 'Spa', 'Sauna', 'Pilates Studio'],
+    hours: '06:00 - 22:00',
+    contact_phone: '+56 2 2345 6789'
+  },
+  {
+    id: '2',
+    name: 'Haltere Vitacura',
+    address: 'Av. Vitacura 2939, Local 101',
+    city: 'Vitacura',
+    status: 'active',
+    capacity: 13,
+    current_members: 10,
+    amenities: ['Gym Premium', 'Yoga Studio', 'Café'],
+    hours: '06:00 - 22:00',
+    contact_phone: '+56 2 2345 6790'
+  },
+  {
+    id: '3',
+    name: 'Haltere Providencia',
+    address: 'Av. Providencia 1208, Piso 5',
+    city: 'Providencia',
+    status: 'maintenance',
+    capacity: 10,
+    current_members: 0,
+    amenities: ['Gym', 'Pilates'],
+    hours: 'Temporalmente cerrado',
+    contact_phone: '+56 2 2345 6791'
+  }
+];
+
+export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
 
   useEffect(() => {
-    // TODO: Reemplazar con llamada real a la API
     setTimeout(() => {
-      setLocations([
-        {
-          id: '1',
-          name: 'Sede Vitacura',
-          address: 'Av. Vitacura 2939, Of. 1201',
-          city: 'Vitacura, Santiago',
-          phone: '+56 2 2345 6789',
-          email: 'vitacura@haltere.cl',
-          capacity: 28,
-          currentMembers: 24,
-          services: ['Gimnasio', 'Yoga', 'Personal Training', 'Spa'],
-          schedule: 'Lun-Vie: 6:00-22:00 | Sáb: 8:00-18:00 | Dom: 9:00-14:00',
-          status: 'active',
-        },
-        {
-          id: '2',
-          name: 'Sede Las Condes',
-          address: 'Isidora Goyenechea 3000, Piso 15',
-          city: 'Las Condes, Santiago',
-          phone: '+56 2 2987 6543',
-          email: 'lascondes@haltere.cl',
-          capacity: 35,
-          currentMembers: 31,
-          services: ['Gimnasio', 'Pilates', 'Personal Training', 'Nutrición'],
-          schedule: 'Lun-Vie: 6:00-23:00 | Sáb: 7:00-20:00 | Dom: 8:00-16:00',
-          status: 'active',
-        },
-        {
-          id: '3',
-          name: 'Sede Providencia',
-          address: 'Av. Providencia 1208, Of. 301',
-          city: 'Providencia, Santiago',
-          phone: '+56 2 2111 2222',
-          email: 'providencia@haltere.cl',
-          capacity: 20,
-          currentMembers: 0,
-          services: ['Gimnasio', 'Yoga', 'Masajes'],
-          schedule: 'Lun-Vie: 7:00-21:00 | Sáb: 9:00-15:00',
-          status: 'maintenance',
-        },
-      ]);
+      setLocations(mockLocations);
       setIsLoading(false);
     }, 500);
   }, []);
 
-  const getStatusBadge = (status: Location['status']) => {
-    const styles = {
-      active: 'bg-green-500/10 text-green-400 border-green-500/20',
-      maintenance: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      inactive: 'bg-red-500/10 text-red-400 border-red-500/20',
+  const getStatusBadge = (status: string) => {
+    const baseStyle: React.CSSProperties = {
+      padding: '6px 12px',
+      fontSize: '12px',
+      borderRadius: '8px',
+      fontWeight: 500,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px'
     };
-    const labels = {
-      active: 'Activa',
-      maintenance: 'En Mantenimiento',
-      inactive: 'Inactiva',
-    };
-    return (
-      <span className={`px-2 py-1 text-xs rounded-full border ${styles[status]}`}>
-        {labels[status]}
-      </span>
-    );
+    
+    switch (status) {
+      case 'active':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>● Activa</span>;
+      case 'maintenance':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>● Mantenimiento</span>;
+      case 'closed':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>● Cerrada</span>;
+      default:
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}>● {status}</span>;
+    }
   };
 
   const getCapacityColor = (current: number, max: number) => {
     const percentage = (current / max) * 100;
-    if (percentage >= 90) return 'text-red-400';
-    if (percentage >= 70) return 'text-yellow-400';
-    return 'text-green-400';
+    if (percentage >= 90) return '#ef4444';
+    if (percentage >= 70) return '#eab308';
+    return '#22c55e';
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-4 border-[#d4af37]/20 border-t-[#d4af37] rounded-full animate-spin" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '4px solid rgba(212, 175, 55, 0.2)',
+          borderTop: '4px solid #d4af37',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
+  const totalCapacity = locations.reduce((acc, loc) => acc + loc.capacity, 0);
+  const totalMembers = locations.reduce((acc, loc) => acc + loc.current_members, 0);
+  const activeLocations = locations.filter(l => l.status === 'active').length;
+
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 className="text-2xl font-semibold text-white mb-1">
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#ffffff', margin: 0, marginBottom: '4px' }}>
             Sedes
           </h1>
-          <p className="text-sm text-[#666]">
-            Administración de ubicaciones del club
+          <p style={{ fontSize: '14px', color: '#666666', margin: 0 }}>
+            Gestiona las ubicaciones del club
           </p>
         </div>
-        <button className="bg-[#d4af37] text-[#0a0a0a] font-medium rounded-lg px-5 py-2 text-sm hover:bg-[#b8962f] transition-colors">
-          + Nueva Sede
+        <button style={{
+          backgroundColor: '#d4af37',
+          color: '#0a0a0a',
+          fontWeight: 600,
+          borderRadius: '8px',
+          padding: '10px 20px',
+          fontSize: '14px',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ fontSize: '16px' }}>+</span>
+          Nueva Sede
         </button>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
         {[
-          { label: 'Total Sedes', value: locations.length, icon: '🏢' },
-          { label: 'Sedes Activas', value: locations.filter(l => l.status === 'active').length, icon: '✅' },
-          { label: 'Capacidad Total', value: locations.reduce((sum, l) => sum + l.capacity, 0), icon: '👥' },
-          { label: 'Miembros Totales', value: locations.reduce((sum, l) => sum + l.currentMembers, 0), icon: '💪' },
+          { label: 'Total Sedes', value: locations.length, icon: '🏢', color: '#ffffff' },
+          { label: 'Activas', value: activeLocations, icon: '✓', color: '#22c55e' },
+          { label: 'Capacidad Total', value: totalCapacity, icon: '👥', color: '#d4af37' },
+          { label: 'Ocupación Actual', value: `${Math.round((totalMembers / totalCapacity) * 100)}%`, icon: '📊', color: '#3b82f6' },
         ].map((stat, i) => (
-          <div key={i} className="bg-[#111] border border-[#222] rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{stat.icon}</span>
-              <div>
-                <div className="text-2xl font-semibold text-white">{stat.value}</div>
-                <div className="text-xs text-[#666]">{stat.label}</div>
-              </div>
+          <div key={i} style={{
+            backgroundColor: '#111111',
+            border: '1px solid #222222',
+            borderRadius: '16px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <span style={{ fontSize: '12px', color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</span>
+              <span style={{ fontSize: '18px' }}>{stat.icon}</span>
             </div>
+            <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: stat.color }}>{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* Locations Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
         {locations.map((location) => (
-          <div 
-            key={location.id} 
-            className="bg-[#111] border border-[#222] rounded-xl overflow-hidden hover:border-[#d4af37]/30 transition-all"
+          <div
+            key={location.id}
+            style={{
+              backgroundColor: '#111111',
+              border: '1px solid #222222',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              transition: 'border-color 0.2s'
+            }}
           >
             {/* Location Header */}
-            <div className="p-6 border-b border-[#222]">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-lg font-semibold text-white">{location.name}</h3>
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15) 0%, rgba(212, 175, 55, 0.05) 100%)',
+              padding: '24px',
+              borderBottom: '1px solid #222222'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#ffffff' }}>{location.name}</h3>
+                  <p style={{ margin: 0, marginTop: '4px', fontSize: '14px', color: '#999999' }}>{location.city}</p>
+                </div>
                 {getStatusBadge(location.status)}
               </div>
-              <div className="space-y-1">
-                <p className="text-sm text-[#999]">{location.address}</p>
-                <p className="text-xs text-[#666]">{location.city}</p>
-              </div>
+              <p style={{ margin: 0, fontSize: '14px', color: '#666666' }}>
+                📍 {location.address}
+              </p>
             </div>
 
-            {/* Capacity */}
-            <div className="px-6 py-4 bg-[#0a0a0a]">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-[#666] uppercase tracking-wider">Capacidad</span>
-                <span className={`text-sm font-semibold ${getCapacityColor(location.currentMembers, location.capacity)}`}>
-                  {location.currentMembers} / {location.capacity}
-                </span>
-              </div>
-              <div className="h-2 bg-[#222] rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-[#d4af37] rounded-full transition-all"
-                  style={{ width: `${(location.currentMembers / location.capacity) * 100}%` }}
-                />
-              </div>
-              <div className="mt-2 text-xs text-[#666]">
-                {location.capacity - location.currentMembers} cupos disponibles
-              </div>
-            </div>
-
-            {/* Contact & Services */}
-            <div className="p-6 space-y-4">
-              {/* Contact */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-[#666]">📞</span>
-                  <span className="text-[#999]">{location.phone}</span>
+            {/* Location Body */}
+            <div style={{ padding: '24px' }}>
+              {/* Capacity Bar */}
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px', color: '#999999' }}>Capacidad</span>
+                  <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: 500 }}>
+                    {location.current_members} / {location.capacity} miembros
+                  </span>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="text-[#666]">✉️</span>
-                  <span className="text-[#999]">{location.email}</span>
+                <div style={{ height: '8px', backgroundColor: '#1a1a1a', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    width: `${(location.current_members / location.capacity) * 100}%`,
+                    backgroundColor: getCapacityColor(location.current_members, location.capacity),
+                    borderRadius: '4px',
+                    transition: 'width 0.5s ease'
+                  }} />
                 </div>
               </div>
 
-              {/* Services */}
-              <div>
-                <div className="text-xs text-[#666] uppercase tracking-wider mb-2">Servicios</div>
-                <div className="flex flex-wrap gap-2">
-                  {location.services.map((service, i) => (
-                    <span 
+              {/* Info Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '4px' }}>Horario</p>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{location.hours}</p>
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '4px' }}>Teléfono</p>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{location.contact_phone}</p>
+                </div>
+              </div>
+
+              {/* Amenities */}
+              <div style={{ marginBottom: '20px' }}>
+                <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Amenidades</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {location.amenities.map((amenity, i) => (
+                    <span
                       key={i}
-                      className="px-2 py-1 text-xs bg-[#d4af37]/10 text-[#d4af37] rounded"
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#0a0a0a',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        color: '#999999'
+                      }}
                     >
-                      {service}
+                      {amenity}
                     </span>
                   ))}
                 </div>
               </div>
 
-              {/* Schedule */}
-              <div>
-                <div className="text-xs text-[#666] uppercase tracking-wider mb-1">Horario</div>
-                <div className="text-xs text-[#999]">{location.schedule}</div>
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button style={{
+                  flex: 1,
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  color: '#999999',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}>
+                  Ver Detalles
+                </button>
+                <button style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                  border: '1px solid rgba(212, 175, 55, 0.3)',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  color: '#d4af37',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}>
+                  Editar
+                </button>
               </div>
-            </div>
-
-            {/* Actions */}
-            <div className="px-6 py-4 border-t border-[#222] flex gap-2">
-              <button className="flex-1 px-4 py-2 text-sm bg-[#1a1a1a] text-white rounded-lg hover:bg-[#222] transition-colors">
-                Editar
-              </button>
-              <button className="flex-1 px-4 py-2 text-sm border border-[#333] text-[#999] rounded-lg hover:text-white hover:border-[#444] transition-colors">
-                Ver Detalles
-              </button>
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Map Placeholder */}
+      <div style={{
+        marginTop: '32px',
+        backgroundColor: '#111111',
+        border: '1px solid #222222',
+        borderRadius: '16px',
+        padding: '24px'
+      }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', margin: 0, marginBottom: '20px' }}>
+          Mapa de Ubicaciones
+        </h2>
+        <div style={{
+          height: '300px',
+          backgroundColor: '#0a0a0a',
+          borderRadius: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '1px dashed #333333'
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗺️</div>
+            <p style={{ color: '#666666', margin: 0 }}>Mapa interactivo próximamente</p>
+          </div>
+        </div>
       </div>
     </div>
   );

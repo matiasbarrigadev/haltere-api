@@ -4,223 +4,307 @@ import { useEffect, useState } from 'react';
 
 interface Booking {
   id: string;
-  memberName: string;
-  memberEmail: string;
-  service: string;
-  location: string;
+  member_name: string;
+  service_name: string;
+  location_name: string;
   date: string;
   time: string;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  createdAt: string;
+  status: 'confirmed' | 'pending' | 'cancelled' | 'completed';
+  created_at: string;
 }
 
-export default function AdminBookingsPage() {
-  const [isLoading, setIsLoading] = useState(true);
+// Mock data para demostración
+const mockBookings: Booking[] = [
+  { id: '1', member_name: 'Carlos Méndez', service_name: 'Entrenamiento Personal', location_name: 'Haltere Las Condes', date: '2026-02-08', time: '09:00', status: 'confirmed', created_at: '2026-02-07T10:00:00' },
+  { id: '2', member_name: 'María López', service_name: 'Yoga Privado', location_name: 'Haltere Vitacura', date: '2026-02-08', time: '10:30', status: 'confirmed', created_at: '2026-02-07T11:00:00' },
+  { id: '3', member_name: 'Roberto Silva', service_name: 'Fisioterapia', location_name: 'Haltere Las Condes', date: '2026-02-08', time: '11:00', status: 'pending', created_at: '2026-02-07T14:00:00' },
+  { id: '4', member_name: 'Ana Martínez', service_name: 'Nutrición', location_name: 'Haltere Vitacura', date: '2026-02-08', time: '14:00', status: 'confirmed', created_at: '2026-02-07T09:00:00' },
+  { id: '5', member_name: 'Pedro González', service_name: 'Entrenamiento Personal', location_name: 'Haltere Las Condes', date: '2026-02-08', time: '16:00', status: 'cancelled', created_at: '2026-02-06T15:00:00' },
+  { id: '6', member_name: 'Laura Fernández', service_name: 'Pilates', location_name: 'Haltere Vitacura', date: '2026-02-08', time: '17:30', status: 'completed', created_at: '2026-02-06T12:00:00' },
+];
+
+export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed' | 'cancelled' | 'completed'>('all');
+  const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'confirmed' | 'pending' | 'cancelled'>('all');
+  const [dateFilter, setDateFilter] = useState('today');
 
   useEffect(() => {
-    // TODO: Reemplazar con llamada real a la API
+    // Simular carga de datos
     setTimeout(() => {
-      setBookings([
-        {
-          id: '1',
-          memberName: 'Carlos Mendoza',
-          memberEmail: 'carlos@email.com',
-          service: 'Entrenamiento Personal',
-          location: 'Sede Vitacura',
-          date: '2026-02-08',
-          time: '10:00',
-          status: 'confirmed',
-          createdAt: '2026-02-06T14:30:00Z'
-        },
-        {
-          id: '2',
-          memberName: 'Ana Pérez',
-          memberEmail: 'ana@email.com',
-          service: 'Clase de Yoga',
-          location: 'Sede Las Condes',
-          date: '2026-02-08',
-          time: '11:30',
-          status: 'pending',
-          createdAt: '2026-02-07T09:15:00Z'
-        },
-        {
-          id: '3',
-          memberName: 'Jorge López',
-          memberEmail: 'jorge@email.com',
-          service: 'Evaluación Física',
-          location: 'Sede Vitacura',
-          date: '2026-02-09',
-          time: '09:00',
-          status: 'confirmed',
-          createdAt: '2026-02-05T16:45:00Z'
-        },
-        {
-          id: '4',
-          memberName: 'María García',
-          memberEmail: 'maria@email.com',
-          service: 'Masaje Deportivo',
-          location: 'Sede Providencia',
-          date: '2026-02-07',
-          time: '15:00',
-          status: 'completed',
-          createdAt: '2026-02-04T11:20:00Z'
-        },
-      ]);
+      setBookings(mockBookings);
       setIsLoading(false);
     }, 500);
   }, []);
 
-  const filteredBookings = filter === 'all' 
-    ? bookings 
-    : bookings.filter(b => b.status === filter);
+  const filteredBookings = bookings.filter((booking) => {
+    if (filter === 'all') return true;
+    return booking.status === filter;
+  });
 
-  const getStatusBadge = (status: Booking['status']) => {
-    const styles = {
-      pending: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-      confirmed: 'bg-green-500/10 text-green-400 border-green-500/20',
-      cancelled: 'bg-red-500/10 text-red-400 border-red-500/20',
-      completed: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  const getStatusBadge = (status: string) => {
+    const baseStyle: React.CSSProperties = {
+      padding: '6px 12px',
+      fontSize: '12px',
+      borderRadius: '8px',
+      fontWeight: 500,
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px'
     };
-    const labels = {
-      pending: 'Pendiente',
-      confirmed: 'Confirmada',
-      cancelled: 'Cancelada',
-      completed: 'Completada',
-    };
-    return (
-      <span className={`px-2 py-1 text-xs rounded-full border ${styles[status]}`}>
-        {labels[status]}
-      </span>
-    );
+    
+    switch (status) {
+      case 'confirmed':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>● Confirmada</span>;
+      case 'pending':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>● Pendiente</span>;
+      case 'cancelled':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>● Cancelada</span>;
+      case 'completed':
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>● Completada</span>;
+      default:
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}>● {status}</span>;
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-12 h-12 border-4 border-[#d4af37]/20 border-t-[#d4af37] rounded-full animate-spin" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '4px solid rgba(212, 175, 55, 0.2)',
+          borderTop: '4px solid #d4af37',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 className="text-2xl font-semibold text-white mb-1">
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#ffffff', margin: 0, marginBottom: '4px' }}>
             Reservas
           </h1>
-          <p className="text-sm text-[#666]">
-            Gestión de reservas y citas del club
+          <p style={{ fontSize: '14px', color: '#666666', margin: 0 }}>
+            Gestiona las reservas del club
           </p>
         </div>
-        <button className="bg-[#d4af37] text-[#0a0a0a] font-medium rounded-lg px-5 py-2 text-sm hover:bg-[#b8962f] transition-colors">
-          + Nueva Reserva
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <select
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            style={{
+              backgroundColor: '#111111',
+              border: '1px solid #222222',
+              borderRadius: '8px',
+              padding: '10px 16px',
+              color: '#999999',
+              fontSize: '14px',
+              cursor: 'pointer',
+              outline: 'none'
+            }}
+          >
+            <option value="today">Hoy</option>
+            <option value="week">Esta semana</option>
+            <option value="month">Este mes</option>
+          </select>
+          <button style={{
+            backgroundColor: '#d4af37',
+            color: '#0a0a0a',
+            fontWeight: 600,
+            borderRadius: '8px',
+            padding: '10px 20px',
+            fontSize: '14px',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span style={{ fontSize: '16px' }}>+</span>
+            Nueva Reserva
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Total Hoy', value: 15, icon: '📅' },
-          { label: 'Pendientes', value: 3, icon: '⏳' },
-          { label: 'Confirmadas', value: 10, icon: '✅' },
-          { label: 'Completadas', value: 2, icon: '🎯' },
+          { label: 'Total Hoy', value: filteredBookings.length, icon: '📅', color: '#ffffff' },
+          { label: 'Confirmadas', value: bookings.filter(b => b.status === 'confirmed').length, icon: '✓', color: '#22c55e' },
+          { label: 'Pendientes', value: bookings.filter(b => b.status === 'pending').length, icon: '⏳', color: '#eab308' },
+          { label: 'Canceladas', value: bookings.filter(b => b.status === 'cancelled').length, icon: '✕', color: '#ef4444' },
         ].map((stat, i) => (
-          <div key={i} className="bg-[#111] border border-[#222] rounded-xl p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{stat.icon}</span>
-              <div>
-                <div className="text-2xl font-semibold text-white">{stat.value}</div>
-                <div className="text-xs text-[#666]">{stat.label}</div>
-              </div>
+          <div key={i} style={{
+            backgroundColor: '#111111',
+            border: '1px solid #222222',
+            borderRadius: '16px',
+            padding: '20px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <span style={{ fontSize: '12px', color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{stat.label}</span>
+              <span style={{ fontSize: '18px' }}>{stat.icon}</span>
             </div>
+            <p style={{ margin: 0, fontSize: '32px', fontWeight: 700, color: stat.color }}>{stat.value}</p>
           </div>
         ))}
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2">
-        {[
-          { key: 'all', label: 'Todas' },
-          { key: 'pending', label: 'Pendientes' },
-          { key: 'confirmed', label: 'Confirmadas' },
-          { key: 'completed', label: 'Completadas' },
-          { key: 'cancelled', label: 'Canceladas' },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key as typeof filter)}
-            className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
-              filter === f.key
-                ? 'bg-[#d4af37]/15 border-[#d4af37]/30 text-[#d4af37]'
-                : 'border-[#333] text-[#666] hover:text-white hover:border-[#444]'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', backgroundColor: '#111111', border: '1px solid #222222', borderRadius: '8px', overflow: 'hidden' }}>
+          {(['all', 'confirmed', 'pending', 'cancelled'] as const).map((status) => (
+            <button
+              key={status}
+              onClick={() => setFilter(status)}
+              style={{
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                backgroundColor: filter === status ? 'rgba(212, 175, 55, 0.15)' : 'transparent',
+                color: filter === status ? '#d4af37' : '#666666'
+              }}
+            >
+              {status === 'all' ? 'Todas' : status === 'confirmed' ? 'Confirmadas' : status === 'pending' ? 'Pendientes' : 'Canceladas'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Bookings Table */}
-      <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[#222]">
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Miembro</th>
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Servicio</th>
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Sede</th>
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Fecha</th>
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Estado</th>
-              <th className="text-left text-xs text-[#666] uppercase tracking-wider px-6 py-4">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredBookings.map((booking) => (
-              <tr key={booking.id} className="border-b border-[#1a1a1a] hover:bg-[#0a0a0a] transition-colors">
-                <td className="px-6 py-4">
-                  <div>
-                    <div className="text-white font-medium">{booking.memberName}</div>
-                    <div className="text-xs text-[#666]">{booking.memberEmail}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-[#999]">{booking.service}</td>
-                <td className="px-6 py-4 text-[#999]">{booking.location}</td>
-                <td className="px-6 py-4">
-                  <div>
-                    <div className="text-white">{booking.date}</div>
-                    <div className="text-xs text-[#666]">{booking.time}</div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">{getStatusBadge(booking.status)}</td>
-                <td className="px-6 py-4">
-                  <div className="flex gap-2">
-                    {booking.status === 'pending' && (
-                      <>
-                        <button className="px-3 py-1 text-xs bg-green-500/10 text-green-400 border border-green-500/20 rounded hover:bg-green-500/20 transition-colors">
-                          Confirmar
-                        </button>
-                        <button className="px-3 py-1 text-xs bg-red-500/10 text-red-400 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors">
-                          Cancelar
-                        </button>
-                      </>
-                    )}
-                    {booking.status === 'confirmed' && (
-                      <button className="px-3 py-1 text-xs bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded hover:bg-blue-500/20 transition-colors">
-                        Completar
-                      </button>
-                    )}
-                    <button className="px-3 py-1 text-xs text-[#666] hover:text-white transition-colors">
-                      Ver
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* Bookings List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredBookings.length > 0 ? (
+          filteredBookings.map((booking) => (
+            <div
+              key={booking.id}
+              style={{
+                backgroundColor: '#111111',
+                border: '1px solid #222222',
+                borderRadius: '16px',
+                padding: '20px 24px',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
+                alignItems: 'center',
+                gap: '20px'
+              }}
+            >
+              {/* Member Info */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#d4af37',
+                  fontWeight: 600,
+                  fontSize: '16px'
+                }}>
+                  {booking.member_name.charAt(0)}
+                </div>
+                <div>
+                  <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>{booking.member_name}</p>
+                  <p style={{ margin: 0, color: '#666666', fontSize: '13px' }}>{booking.service_name}</p>
+                </div>
+              </div>
+
+              {/* Location */}
+              <div>
+                <p style={{ margin: 0, color: '#999999', fontSize: '13px' }}>Sede</p>
+                <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>{booking.location_name}</p>
+              </div>
+
+              {/* Time */}
+              <div>
+                <p style={{ margin: 0, color: '#999999', fontSize: '13px' }}>Horario</p>
+                <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>
+                  {new Date(booking.date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })} · {booking.time}
+                </p>
+              </div>
+
+              {/* Status */}
+              <div>
+                {getStatusBadge(booking.status)}
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: '#999999',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}>
+                  Ver
+                </button>
+                <button style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  padding: '8px 12px',
+                  color: '#999999',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}>
+                  ⋮
+                </button>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{
+            backgroundColor: '#111111',
+            border: '1px solid #222222',
+            borderRadius: '16px',
+            padding: '64px 32px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📅</div>
+            <h3 style={{ fontSize: '20px', color: '#ffffff', margin: 0, marginBottom: '8px' }}>No hay reservas</h3>
+            <p style={{ color: '#666666', margin: 0 }}>No se encontraron reservas con este filtro</p>
+          </div>
+        )}
+      </div>
+
+      {/* Calendar Preview */}
+      <div style={{ marginTop: '32px', backgroundColor: '#111111', border: '1px solid #222222', borderRadius: '16px', padding: '24px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', margin: 0, marginBottom: '20px' }}>
+          Vista Rápida - Próximas Horas
+        </h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '12px' }}>
+          {['09:00', '10:00', '11:00', '12:00', '14:00', '15:00'].map((hour, i) => {
+            const hasBooking = bookings.some(b => b.time.startsWith(hour.split(':')[0]));
+            return (
+              <div
+                key={hour}
+                style={{
+                  backgroundColor: hasBooking ? 'rgba(212, 175, 55, 0.1)' : '#0a0a0a',
+                  border: hasBooking ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid #222222',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  textAlign: 'center'
+                }}
+              >
+                <p style={{ margin: 0, color: '#666666', fontSize: '12px', marginBottom: '4px' }}>Hora</p>
+                <p style={{ margin: 0, color: hasBooking ? '#d4af37' : '#ffffff', fontWeight: 600 }}>{hour}</p>
+                {hasBooking && <p style={{ margin: 0, color: '#d4af37', fontSize: '11px', marginTop: '4px' }}>● Ocupado</p>}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

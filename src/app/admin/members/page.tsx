@@ -48,98 +48,108 @@ export default function MembersPage() {
   });
 
   const getStatusBadge = (status: string) => {
+    const baseStyle: React.CSSProperties = {
+      padding: '4px 10px',
+      fontSize: '12px',
+      borderRadius: '6px',
+      fontWeight: 500
+    };
+    
     switch (status) {
       case 'active':
-        return (
-          <span className="px-2 py-1 text-xs bg-green-500/10 text-green-400 rounded">
-            Activo
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>Activo</span>;
       case 'suspended':
-        return (
-          <span className="px-2 py-1 text-xs bg-red-500/10 text-red-400 rounded">
-            Suspendido
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>Suspendido</span>;
       case 'pending_approval':
-        return (
-          <span className="px-2 py-1 text-xs bg-yellow-500/10 text-yellow-400 rounded">
-            Pendiente
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>Pendiente</span>;
       default:
-        return (
-          <span className="px-2 py-1 text-xs bg-gray-500/10 text-gray-400 rounded">
-            {status}
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}>{status}</span>;
     }
   };
 
   const getRoleBadge = (role: string) => {
+    const baseStyle: React.CSSProperties = {
+      padding: '4px 10px',
+      fontSize: '12px',
+      borderRadius: '6px',
+      fontWeight: 500
+    };
+    
     switch (role) {
       case 'admin':
-        return (
-          <span className="px-2 py-1 text-xs bg-purple-500/10 text-purple-400 rounded">
-            Admin
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>Admin</span>;
       case 'professional':
-        return (
-          <span className="px-2 py-1 text-xs bg-blue-500/10 text-blue-400 rounded">
-            Pro
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>Pro</span>;
       case 'member':
-        return (
-          <span className="px-2 py-1 text-xs bg-[#d4af37]/10 text-[#d4af37] rounded">
-            VIP
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(212, 175, 55, 0.1)', color: '#d4af37' }}>VIP</span>;
       default:
-        return (
-          <span className="px-2 py-1 text-xs bg-gray-500/10 text-gray-400 rounded">
-            Guest
-          </span>
-        );
+        return <span style={{ ...baseStyle, backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}>Guest</span>;
     }
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-[#d4af37]">Cargando miembros...</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '4px solid rgba(212, 175, 55, 0.2)',
+          borderTop: '4px solid #d4af37',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 className="text-2xl font-serif text-white tracking-wide">
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#ffffff', margin: 0, marginBottom: '4px' }}>
             Miembros
           </h1>
-          <p className="text-[#666] mt-1">
+          <p style={{ fontSize: '14px', color: '#666666', margin: 0 }}>
             {filteredMembers.length} miembros encontrados
           </p>
         </div>
+        <button style={{
+          backgroundColor: '#d4af37',
+          color: '#0a0a0a',
+          fontWeight: 600,
+          borderRadius: '8px',
+          padding: '10px 20px',
+          fontSize: '14px',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span style={{ fontSize: '16px' }}>+</span>
+          Nuevo Miembro
+        </button>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         {/* Status Filter */}
-        <div className="flex bg-[#111] border border-[#222] rounded-lg overflow-hidden">
+        <div style={{ display: 'flex', backgroundColor: '#111111', border: '1px solid #222222', borderRadius: '8px', overflow: 'hidden' }}>
           {(['all', 'active', 'suspended'] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilter(status)}
-              className={`px-4 py-2 text-sm transition-colors ${
-                filter === status
-                  ? 'bg-[#d4af37]/20 text-[#d4af37]'
-                  : 'text-[#666] hover:text-white'
-              }`}
+              style={{
+                padding: '10px 16px',
+                fontSize: '14px',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                backgroundColor: filter === status ? 'rgba(212, 175, 55, 0.15)' : 'transparent',
+                color: filter === status ? '#d4af37' : '#666666'
+              }}
             >
               {status === 'all' ? 'Todos' : status === 'active' ? 'Activos' : 'Suspendidos'}
             </button>
@@ -152,72 +162,72 @@ export default function MembersPage() {
           placeholder="Buscar por nombre o teléfono..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-1 min-w-[200px] px-4 py-2 bg-[#111] border border-[#222] rounded-lg text-white placeholder-[#555] focus:outline-none focus:border-[#d4af37]"
+          style={{
+            flex: 1,
+            minWidth: '250px',
+            padding: '10px 16px',
+            backgroundColor: '#111111',
+            border: '1px solid #222222',
+            borderRadius: '8px',
+            color: '#ffffff',
+            fontSize: '14px',
+            outline: 'none'
+          }}
         />
       </div>
 
       {/* Members Table */}
       {filteredMembers.length > 0 ? (
-        <div className="bg-[#111] border border-[#222] rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-[#0a0a0a]">
-              <tr>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Miembro
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Teléfono
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Rol
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Estado
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Technogym
-                </th>
-                <th className="text-left px-6 py-4 text-sm font-medium text-[#666]">
-                  Membresía
-                </th>
+        <div style={{ backgroundColor: '#111111', border: '1px solid #222222', borderRadius: '16px', overflow: 'hidden', marginBottom: '24px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#0a0a0a' }}>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Miembro</th>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Teléfono</th>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rol</th>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Estado</th>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Technogym</th>
+                <th style={{ textAlign: 'left', padding: '16px 20px', fontSize: '12px', fontWeight: 600, color: '#666666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Membresía</th>
               </tr>
             </thead>
             <tbody>
-              {filteredMembers.map((member) => (
-                <tr
-                  key={member.id}
-                  className="border-t border-[#222] hover:bg-[#1a1a1a] transition-colors"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#d4af37]/10 flex items-center justify-center text-[#d4af37] font-medium">
+              {filteredMembers.map((member, index) => (
+                <tr key={member.id} style={{ borderTop: '1px solid #222222' }}>
+                  <td style={{ padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#d4af37',
+                        fontWeight: 600,
+                        fontSize: '16px'
+                      }}>
                         {member.full_name?.charAt(0) || '?'}
                       </div>
                       <div>
-                        <p className="text-white">{member.full_name || 'Sin nombre'}</p>
-                        <p className="text-[#666] text-xs">
+                        <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>{member.full_name || 'Sin nombre'}</p>
+                        <p style={{ margin: 0, color: '#666666', fontSize: '12px' }}>
                           {new Date(member.created_at).toLocaleDateString('es-CL')}
                         </p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-[#999]">
-                    {member.phone || '-'}
-                  </td>
-                  <td className="px-6 py-4">{getRoleBadge(member.role)}</td>
-                  <td className="px-6 py-4">{getStatusBadge(member.member_status)}</td>
-                  <td className="px-6 py-4">
+                  <td style={{ padding: '16px 20px', color: '#999999' }}>{member.phone || '-'}</td>
+                  <td style={{ padding: '16px 20px' }}>{getRoleBadge(member.role)}</td>
+                  <td style={{ padding: '16px 20px' }}>{getStatusBadge(member.member_status)}</td>
+                  <td style={{ padding: '16px 20px' }}>
                     {member.technogym_user_id ? (
-                      <span className="px-2 py-1 text-xs bg-green-500/10 text-green-400 rounded">
-                        ✓ Vinculado
-                      </span>
+                      <span style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', borderRadius: '6px' }}>✓ Vinculado</span>
                     ) : (
-                      <span className="px-2 py-1 text-xs bg-gray-500/10 text-gray-400 rounded">
-                        No vinculado
-                      </span>
+                      <span style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280', borderRadius: '6px' }}>No vinculado</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-[#999] text-sm">
+                  <td style={{ padding: '16px 20px', color: '#999999', fontSize: '14px' }}>
                     {member.membership_expires_at
                       ? new Date(member.membership_expires_at).toLocaleDateString('es-CL')
                       : 'Sin fecha'}
@@ -228,41 +238,40 @@ export default function MembersPage() {
           </table>
         </div>
       ) : (
-        <div className="bg-[#111] border border-[#222] rounded-xl p-12 text-center">
-          <div className="text-4xl mb-4">👥</div>
-          <h3 className="text-xl text-white mb-2">No se encontraron miembros</h3>
-          <p className="text-[#666]">
-            {searchTerm
-              ? 'Intenta con otro término de búsqueda'
-              : 'No hay miembros en esta categoría'}
+        <div style={{
+          backgroundColor: '#111111',
+          border: '1px solid #222222',
+          borderRadius: '16px',
+          padding: '64px 32px',
+          textAlign: 'center',
+          marginBottom: '24px'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>👥</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', margin: 0, marginBottom: '8px' }}>No se encontraron miembros</h3>
+          <p style={{ color: '#666666', margin: 0 }}>
+            {searchTerm ? 'Intenta con otro término de búsqueda' : 'No hay miembros en esta categoría'}
           </p>
         </div>
       )}
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-          <p className="text-[#666] text-sm">Total</p>
-          <p className="text-2xl font-bold text-white mt-1">{members.length}</p>
-        </div>
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-          <p className="text-[#666] text-sm">Activos</p>
-          <p className="text-2xl font-bold text-green-400 mt-1">
-            {members.filter((m) => m.member_status === 'active').length}
-          </p>
-        </div>
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-          <p className="text-[#666] text-sm">Con Technogym</p>
-          <p className="text-2xl font-bold text-purple-400 mt-1">
-            {members.filter((m) => m.technogym_user_id).length}
-          </p>
-        </div>
-        <div className="bg-[#111] border border-[#222] rounded-xl p-4">
-          <p className="text-[#666] text-sm">Profesionales</p>
-          <p className="text-2xl font-bold text-blue-400 mt-1">
-            {members.filter((m) => m.role === 'professional').length}
-          </p>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+        {[
+          { label: 'Total', value: members.length, color: '#ffffff' },
+          { label: 'Activos', value: members.filter((m) => m.member_status === 'active').length, color: '#22c55e' },
+          { label: 'Con Technogym', value: members.filter((m) => m.technogym_user_id).length, color: '#8b5cf6' },
+          { label: 'Profesionales', value: members.filter((m) => m.role === 'professional').length, color: '#3b82f6' },
+        ].map((stat, i) => (
+          <div key={i} style={{
+            backgroundColor: '#111111',
+            border: '1px solid #222222',
+            borderRadius: '16px',
+            padding: '20px'
+          }}>
+            <p style={{ margin: 0, color: '#666666', fontSize: '13px', marginBottom: '8px' }}>{stat.label}</p>
+            <p style={{ margin: 0, fontSize: '28px', fontWeight: 700, color: stat.color }}>{stat.value}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
