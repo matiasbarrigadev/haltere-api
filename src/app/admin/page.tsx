@@ -13,140 +13,208 @@ interface DashboardStats {
   revenueGrowth: number;
 }
 
-// Mini line chart component
-const SparkLine: React.FC<{ data: number[]; color: string; height?: number }> = ({ 
-  data, 
-  color, 
-  height = 40 
-}) => {
+// Area Chart Component with axes
+const AreaChart: React.FC<{ data: number[] }> = ({ data }) => {
   const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
+  const min = 0;
+  const height = 280;
+  const width = 100;
   
+  // Create smooth curve points
   const points = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * 100;
-    const y = height - ((v - min) / range) * height;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const gradientId = `gradient-${color.replace('#', '')}`;
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / (max - min)) * height;
+    return { x, y, value: v };
+  });
+  
+  // Create path for smooth curve
+  const linePath = points.map((p, i) => 
+    i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
+  ).join(' ');
+  
+  const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`;
+  
+  const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const yLabels = [800, 600, 400, 200, 0];
 
   return (
-    <svg width="100%" height={height} style={{ overflow: 'visible' }}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polyline
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={points}
-      />
-      <polygon
-        fill={`url(#${gradientId})`}
-        points={`0,${height} ${points} 100,${height}`}
-      />
-    </svg>
+    <div className="relative">
+      {/* Y Axis Labels */}
+      <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-xs text-[#555] w-10">
+        {yLabels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
+      </div>
+      
+      {/* Chart Area */}
+      <div className="ml-12">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-64" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#d4af37" stopOpacity="0.4" />
+              <stop offset="50%" stopColor="#d4af37" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#d4af37" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          
+          {/* Grid lines */}
+          {[0, 1, 2, 3, 4].map((i) => (
+            <line
+              key={i}
+              x1="0"
+              y1={(i / 4) * height}
+              x2={width}
+              y2={(i / 4) * height}
+              stroke="#222"
+              strokeWidth="0.3"
+            />
+          ))}
+          
+          {/* Area fill */}
+          <path d={areaPath} fill="url(#areaGradient)" />
+          
+          {/* Line */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="#d4af37"
+            strokeWidth="0.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          
+          {/* Data points */}
+          {points.map((p, i) => (
+            <circle
+              key={i}
+              cx={p.x}
+              cy={p.y}
+              r="0.8"
+              fill="#d4af37"
+            />
+          ))}
+        </svg>
+        
+        {/* X Axis Labels */}
+        <div className="flex justify-between text-xs text-[#555] mt-2">
+          {months.map((month) => (
+            <span key={month}>{month}</span>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 };
 
-// Stat card component
-const StatCard: React.FC<{
-  title: string;
-  value: string | number;
-  subtitle?: string;
-  growth?: number;
-  chartData?: number[];
-  icon?: React.ReactNode;
-  large?: boolean;
-}> = ({ title, value, subtitle, growth, chartData, icon, large }) => (
-  <div className={`rounded-xl border border-[#d4af37]/20 p-5 transition-all hover:border-[#d4af37]/40 ${
-    large 
-      ? 'bg-gradient-to-br from-[#d4af37]/15 to-[#d4af37]/5' 
-      : 'bg-[#111]'
-  }`}>
-    <div className="flex justify-between items-start">
-      <div>
-        <div className={`font-semibold ${
-          large 
-            ? 'text-4xl text-[#d4af37]' 
-            : 'text-2xl text-white'
-        }`}>
-          {value}
-        </div>
-        <div className="text-xs text-[#666] uppercase tracking-wider mt-2">
-          {title}
-        </div>
+// Circular Progress Ring
+const CapacityRing: React.FC<{ value: number; max: number }> = ({ value, max }) => {
+  const percentage = (value / max) * 100;
+  const circumference = 2 * Math.PI * 80;
+  const offset = circumference - (percentage / 100) * circumference;
+  
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg width="180" height="180" className="transform -rotate-90">
+        {/* Background ring */}
+        <circle
+          cx="90"
+          cy="90"
+          r="80"
+          fill="none"
+          stroke="#1a1a1a"
+          strokeWidth="8"
+        />
+        {/* Progress ring */}
+        <circle
+          cx="90"
+          cy="90"
+          r="80"
+          fill="none"
+          stroke="#d4af37"
+          strokeWidth="8"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          className="transition-all duration-1000 ease-out"
+        />
+      </svg>
+      <div className="absolute text-center">
+        <div className="text-4xl font-bold text-white">{value}</div>
+        <div className="text-xs text-[#666] uppercase tracking-wider">Miembros</div>
       </div>
-      {icon && (
-        <div className="w-10 h-10 rounded-lg bg-[#d4af37]/10 flex items-center justify-center text-[#d4af37] text-xl">
-          {icon}
-        </div>
-      )}
     </div>
-    {chartData && (
-      <div className="mt-3">
-        <SparkLine data={chartData} color="#d4af37" height={50} />
-      </div>
-    )}
+  );
+};
+
+// Stat Card Component
+const StatCard: React.FC<{
+  label: string;
+  value: string | number;
+  subtitle: string;
+  growth?: number;
+  icon: React.ReactNode;
+}> = ({ label, value, subtitle, growth, icon }) => (
+  <div className="bg-[#111] border border-[#1a1a1a] rounded-2xl p-6 hover:border-[#333] transition-colors">
+    <div className="flex justify-between items-start mb-4">
+      <span className="text-xs text-[#666] uppercase tracking-wider">{label}</span>
+      <span className="text-[#444]">{icon}</span>
+    </div>
+    <div className="text-3xl font-bold text-white mb-1">{value}</div>
+    <div className="text-sm text-[#666]">{subtitle}</div>
     {growth !== undefined && (
-      <div className={`flex items-center gap-1 text-sm mt-3 ${
-        growth >= 0 ? 'text-green-400' : 'text-red-400'
-      }`}>
-        <span>{growth >= 0 ? '↑' : '↓'}</span>
-        <span>{Math.abs(growth)}%</span>
-        {subtitle && (
-          <span className="text-[#666] ml-1">{subtitle}</span>
-        )}
+      <div className={`text-sm mt-2 ${growth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+        {growth >= 0 ? '↑' : '↓'} {Math.abs(growth)}%
+        <span className="text-[#555] ml-1">vs mes anterior</span>
       </div>
     )}
   </div>
 );
 
-// Circular progress indicator
-const CircleProgress: React.FC<{ value: number; max: number; label: string }> = ({ value, max, label }) => {
-  const percentage = (value / max) * 100;
-  const circumference = 2 * Math.PI * 36;
-  const offset = circumference - (percentage / 100) * circumference;
-  
-  return (
-    <div className="flex flex-col items-center gap-2 relative">
-      <svg width="80" height="80" style={{ transform: 'rotate(-90deg)' }}>
-        <circle
-          cx="40"
-          cy="40"
-          r="36"
-          fill="none"
-          stroke="rgba(212, 175, 55, 0.1)"
-          strokeWidth="6"
-        />
-        <circle
-          cx="40"
-          cy="40"
-          r="36"
-          fill="none"
-          stroke="#d4af37"
-          strokeWidth="6"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          className="transition-all duration-500"
-        />
-      </svg>
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
-        <div className="text-xl font-semibold text-white">{value}</div>
+// Progress Stat Component  
+const ProgressStat: React.FC<{
+  label: string;
+  value: number;
+  max: number;
+  icon: string;
+}> = ({ label, value, max, icon }) => (
+  <div className="flex items-center gap-4 p-4 rounded-xl bg-[#0a0a0a]">
+    <span className="text-xl">{icon}</span>
+    <div className="flex-1">
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-sm text-[#999]">{label}</span>
+        <span className="text-sm font-medium text-white">{value}</span>
       </div>
-      <div className="text-xs text-[#666] uppercase tracking-wider -mt-2">
-        {label}
+      <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+        <div 
+          className="h-full bg-[#d4af37] rounded-full transition-all duration-500"
+          style={{ width: `${(value / max) * 100}%` }}
+        />
       </div>
+      <div className="text-xs text-[#555] mt-1">MAX {max}</div>
     </div>
-  );
-};
+  </div>
+);
+
+// Quick Action Button
+const QuickAction: React.FC<{
+  icon: string;
+  label: string;
+  color: string;
+  href: string;
+}> = ({ icon, label, color, href }) => (
+  <a
+    href={href}
+    className="bg-[#111] border border-[#1a1a1a] rounded-xl p-6 flex flex-col items-center gap-3 hover:border-[#333] hover:bg-[#0d0d0d] transition-all group"
+  >
+    <div 
+      className="w-10 h-10 rounded-full flex items-center justify-center"
+      style={{ backgroundColor: `${color}20` }}
+    >
+      <span className="text-lg" style={{ color }}>{icon}</span>
+    </div>
+    <span className="text-sm text-[#888] group-hover:text-white transition-colors">{label}</span>
+  </a>
+);
 
 export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
@@ -162,10 +230,7 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    // La autenticación ya se maneja en el layout
-    // Solo cargamos los datos
     const loadData = async () => {
-      // TODO: Reemplazar con llamadas reales a la API
       await new Promise(resolve => setTimeout(resolve, 500));
       setStats({
         totalMembers: 24,
@@ -182,8 +247,7 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  // Sample data for charts
-  const sessionsData = [120, 145, 130, 160, 175, 155, 190, 210, 185, 220, 240, 235];
+  const chartData = [120, 180, 150, 220, 280, 350, 420, 480, 520, 580, 650, 720];
 
   if (isLoading) {
     return (
@@ -194,224 +258,112 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-semibold text-white mb-1">
-            Dashboard
-          </h1>
-          <p className="text-sm text-[#666]">
-            Resumen general del club
-          </p>
+          <h1 className="text-3xl font-bold text-white mb-1">Dashboard</h1>
+          <p className="text-[#666]">Resumen general del club</p>
         </div>
         <div className="flex gap-3">
-          <select className="bg-[#1a1a1a] border border-[#333] rounded-lg px-4 py-2 text-[#999] text-sm focus:outline-none focus:border-[#d4af37]">
+          <select className="bg-[#111] border border-[#222] rounded-xl px-4 py-2.5 text-[#999] text-sm focus:outline-none focus:border-[#d4af37] transition-colors">
             <option>Últimos 30 días</option>
             <option>Últimos 7 días</option>
             <option>Este mes</option>
             <option>Este año</option>
           </select>
-          <button className="bg-[#d4af37] text-[#0a0a0a] font-medium rounded-lg px-5 py-2 text-sm hover:bg-[#b8962f] transition-colors flex items-center gap-2">
-            <span>↓</span> Exportar
+          <button className="bg-[#d4af37] text-[#0a0a0a] font-semibold rounded-xl px-6 py-2.5 text-sm hover:bg-[#b8962f] transition-colors">
+            Exportar
           </button>
         </div>
       </div>
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Total"
+          value={stats.totalMembers}
+          subtitle="MIEMBROS ACTIVOS"
+          growth={stats.membersGrowth}
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
+        />
+        <StatCard
+          label="Pendientes"
+          value={stats.pendingApplications}
+          subtitle="SOLICITUDES"
+          growth={stats.applicationsGrowth}
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+        />
+        <StatCard
+          label="Agenda"
+          value={stats.activeBookings}
+          subtitle="RESERVAS HOY"
+          growth={stats.bookingsGrowth}
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+        />
+        <StatCard
+          label="Finanzas"
+          value={`$${(stats.monthlyRevenue / 1000).toFixed(1)}k`}
+          subtitle="INGRESOS"
+          growth={stats.revenueGrowth}
+          icon={<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+        />
+      </div>
+
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column - Stats and Chart */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Top Stats Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard
-              title="Miembros Activos"
-              value={stats.totalMembers}
-              growth={stats.membersGrowth}
-              chartData={[18, 20, 19, 21, 22, 21, 23, 24]}
-              large
-            />
-            <StatCard
-              title="Solicitudes"
-              value={stats.pendingApplications}
-              growth={stats.applicationsGrowth}
-              subtitle="vs mes anterior"
-              icon={<span>📝</span>}
-            />
-            <StatCard
-              title="Reservas Hoy"
-              value={stats.activeBookings}
-              growth={stats.bookingsGrowth}
-              subtitle="vs semana pasada"
-              icon={<span>📅</span>}
-            />
-            <StatCard
-              title="Ingresos"
-              value={`$${(stats.monthlyRevenue / 1000).toFixed(1)}k`}
-              growth={stats.revenueGrowth}
-              subtitle="este mes"
-              icon={<span>💰</span>}
-            />
+        {/* Chart Section */}
+        <div className="lg:col-span-2 bg-[#111] border border-[#1a1a1a] rounded-2xl p-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-white mb-1">Sesiones de Entrenamiento</h2>
+            <p className="text-sm text-[#666]">Últimos 12 meses</p>
           </div>
+          <AreaChart data={chartData} />
+        </div>
 
-          {/* Sessions Chart */}
-          <div className="bg-[#111] border border-[#222] rounded-xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h3 className="text-base font-semibold text-white mb-1">
-                  Sesiones de Entrenamiento
-                </h3>
-                <p className="text-xs text-[#666]">
-                  📅 Últimos 12 meses
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {['7d', '1m', '3m', '12m'].map((period, i) => (
-                  <button 
-                    key={period} 
-                    className={`px-3 py-1 text-xs rounded-md border transition-colors ${
-                      i === 3 
-                        ? 'bg-[#d4af37]/15 border-[#d4af37]/30 text-[#d4af37]' 
-                        : 'border-[#333] text-[#666] hover:text-white hover:border-[#444]'
-                    }`}
-                  >
-                    {period}
-                  </button>
-                ))}
-              </div>
+        {/* Capacity Section */}
+        <div className="bg-[#111] border border-[#1a1a1a] rounded-2xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-6">Capacidad del Club</h2>
+          <div className="flex justify-center mb-6">
+            <CapacityRing value={stats.totalMembers} max={28} />
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center mb-4">
+            <div>
+              <div className="text-2xl font-bold text-white">{stats.totalMembers}</div>
+              <div className="text-xs text-[#666] uppercase tracking-wider">Miembros</div>
             </div>
-            
-            <div className="h-48 relative">
-              <SparkLine data={sessionsData} color="#d4af37" height={180} />
-              <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-[#444] pt-2">
-                {['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'].map(m => (
-                  <span key={m}>{m}</span>
-                ))}
-              </div>
+            <div>
+              <div className="text-2xl font-bold text-white">{28 - stats.totalMembers}</div>
+              <div className="text-xs text-[#666] uppercase tracking-wider">Disponibles</div>
             </div>
           </div>
+          <div className="text-center py-3 bg-[#d4af37]/10 rounded-xl">
+            <span className="text-[#d4af37] font-medium">
+              {Math.round((stats.totalMembers / 28) * 100)}% de capacidad
+            </span>
+          </div>
+        </div>
+      </div>
 
-          {/* Quick Actions */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: '👤', label: 'Nuevo Miembro', href: '/admin/members' },
-              { icon: '📋', label: 'Ver Solicitudes', href: '/admin/applications' },
-              { icon: '📊', label: 'Reportes', href: '#' },
-              { icon: '📧', label: 'Notificaciones', href: '#' },
-            ].map((action, i) => (
-              <a
-                key={i}
-                href={action.href}
-                className="bg-[#111] border border-[#222] rounded-xl p-5 flex flex-col items-center gap-3 hover:border-[#d4af37]/30 hover:bg-[#1a1a1a] transition-all cursor-pointer"
-              >
-                <span className="text-2xl">{action.icon}</span>
-                <span className="text-xs text-[#999]">{action.label}</span>
-              </a>
-            ))}
+      {/* Bottom Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Quick Actions */}
+        <div className="lg:col-span-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <QuickAction icon="●" label="Nuevo Miembro" color="#3b82f6" href="/admin/members" />
+            <QuickAction icon="●" label="Ver Solicitudes" color="#f97316" href="/admin/applications" />
+            <QuickAction icon="●" label="Reportes" color="#8b5cf6" href="#" />
+            <QuickAction icon="●" label="Notificaciones" color="#ec4899" href="#" />
           </div>
         </div>
 
-        {/* Right Column - Additional Stats */}
-        <div className="space-y-6">
-          {/* Capacity */}
-          <div className="bg-[#111] border border-[#222] rounded-xl p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-semibold text-white">
-                Capacidad del Club
-              </h3>
-              <span className="text-[#444] cursor-pointer hover:text-[#666]">⋮</span>
-            </div>
-            
-            <div className="flex justify-around">
-              <CircleProgress value={stats.totalMembers} max={28} label="Miembros" />
-              <CircleProgress value={4} max={28} label="Disponibles" />
-            </div>
-
-            <div className="mt-6 p-4 bg-[#d4af37]/5 border border-[#d4af37]/10 rounded-lg text-center">
-              <span className="text-[#d4af37] text-sm">
-                {Math.round((stats.totalMembers / 28) * 100)}% de capacidad
-              </span>
-            </div>
-          </div>
-
-          {/* Statistics */}
-          <div className="bg-[#111] border border-[#222] rounded-xl p-6">
-            <div className="flex justify-between items-center mb-5">
-              <h3 className="text-base font-semibold text-white">
-                Estadísticas
-              </h3>
-              <span className="text-[#444] cursor-pointer hover:text-[#666]">⋮</span>
-            </div>
-
-            <div className="space-y-3">
-              {[
-                { label: 'Sesiones Online', value: 312, max: 512, icon: '💻' },
-                { label: 'Nuevos Leads', value: 136, max: 381, icon: '👤' },
-                { label: 'Ingresos Prom.', value: '$3,076', growth: 21, icon: '📈' },
-              ].map((stat, i) => (
-                <div 
-                  key={i} 
-                  className={`flex items-center gap-4 p-4 rounded-lg ${
-                    i === 2 ? 'bg-[#d4af37]/5' : 'bg-[#0a0a0a]'
-                  }`}
-                >
-                  <span className="text-xl">{stat.icon}</span>
-                  <div className="flex-1">
-                    <div className="text-xs text-[#666] mb-1">{stat.label}</div>
-                    {stat.max && typeof stat.value === 'number' && (
-                      <div className="h-1.5 bg-[#222] rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-[#d4af37] rounded-full transition-all"
-                          style={{ width: `${(stat.value / stat.max) * 100}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold text-white">
-                      {stat.value}
-                    </div>
-                    {stat.max && (
-                      <div className="text-xs text-[#444]">MAX {stat.max}</div>
-                    )}
-                    {stat.growth && (
-                      <div className="text-xs text-green-400">+{stat.growth}%</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="bg-[#111] border border-[#222] rounded-xl p-6">
-            <h3 className="text-base font-semibold text-white mb-5">
-              Actividad Reciente
-            </h3>
-            
-            <div className="space-y-0">
-              {[
-                { action: 'Nueva solicitud', user: 'Carlos M.', time: 'Hace 5 min', type: 'new' },
-                { action: 'Reserva confirmada', user: 'Ana P.', time: 'Hace 15 min', type: 'success' },
-                { action: 'Pago recibido', user: 'Jorge L.', time: 'Hace 1 hora', type: 'payment' },
-              ].map((activity, i) => (
-                <div 
-                  key={i} 
-                  className={`flex items-center gap-3 py-3 ${
-                    i < 2 ? 'border-b border-[#1a1a1a]' : ''
-                  }`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.type === 'new' ? 'bg-blue-400' : 
-                    activity.type === 'success' ? 'bg-green-400' : 'bg-[#d4af37]'
-                  }`} />
-                  <div className="flex-1">
-                    <div className="text-sm text-white/80">{activity.action}</div>
-                    <div className="text-xs text-[#666]">{activity.user}</div>
-                  </div>
-                  <div className="text-xs text-[#444]">{activity.time}</div>
-                </div>
-              ))}
-            </div>
+        {/* Statistics */}
+        <div className="bg-[#111] border border-[#1a1a1a] rounded-2xl p-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Estadísticas</h2>
+          <div className="space-y-3">
+            <ProgressStat label="Sesiones Online" value={312} max={500} icon="💻" />
+            <ProgressStat label="Nuevos Leads" value={136} max={300} icon="👤" />
+            <ProgressStat label="Conversiones" value={89} max={150} icon="📈" />
           </div>
         </div>
       </div>
