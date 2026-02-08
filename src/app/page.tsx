@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import VirtuousCircle from '@/components/VirtuousCircle';
 
 const InteractiveHero = dynamic(() => import('@/components/InteractiveHero'), {
@@ -63,6 +64,43 @@ const dimensions = [
 export default function Home() {
   return (
     <main style={{ background: '#0d0c0b' }}>
+      {/* Fixed Header with Login Button */}
+      <header style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000,
+        padding: '20px 40px',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        background: 'linear-gradient(180deg, rgba(13,12,11,0.95) 0%, transparent 100%)',
+      }}>
+        <Link href="/login" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          padding: '10px 24px',
+          background: 'transparent',
+          color: '#F2BB6A',
+          fontSize: '0.8rem',
+          fontWeight: 500,
+          letterSpacing: '0.15em',
+          textTransform: 'uppercase',
+          textDecoration: 'none',
+          border: '1px solid rgba(242, 187, 106, 0.4)',
+          transition: 'all 0.3s ease',
+        }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+            <polyline points="10 17 15 12 10 7"/>
+            <line x1="15" y1="12" x2="3" y2="12"/>
+          </svg>
+          Ingresar
+        </Link>
+      </header>
+
       {/* Hero Section */}
       <InteractiveHero />
 
