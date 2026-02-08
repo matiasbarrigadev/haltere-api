@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import HaltereLogo, { HaltereIconLogo } from '@/components/HaltereLogo';
 
 // Lazy load the Hero Player
 const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
@@ -9,7 +10,8 @@ const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
   loading: () => (
     <div style={{
       width: '100%',
-      height: '500px',
+      height: '100%',
+      minHeight: '500px',
       background: 'linear-gradient(180deg, #1a1816 0%, #0d0c0b 100%)',
       display: 'flex',
       alignItems: 'center',
@@ -27,39 +29,6 @@ const HeroPlayer = dynamic(() => import('@/components/HeroPlayer'), {
   ),
 });
 
-// Logo SVG Component based on Brand Guidelines
-const HaltereLogo = ({ className = '', size = 'default' }: { className?: string; size?: 'default' | 'large' }) => {
-  const height = size === 'large' ? 60 : 40;
-  return (
-    <svg 
-      viewBox="0 0 100 100" 
-      height={height}
-      className={className}
-      fill="currentColor"
-      aria-label="Haltere Logo"
-    >
-      {/* Stylized H with barbell bars */}
-      <g>
-        {/* Left vertical bar with weights */}
-        <rect x="20" y="15" width="4" height="70" />
-        <rect x="15" y="20" width="14" height="8" rx="1" />
-        <rect x="15" y="72" width="14" height="8" rx="1" />
-        
-        {/* Center H connector */}
-        <rect x="24" y="45" width="52" height="4" />
-        
-        {/* Middle vertical (T of halTere) */}
-        <rect x="48" y="25" width="4" height="50" />
-        
-        {/* Right vertical bar with weights */}
-        <rect x="76" y="15" width="4" height="70" />
-        <rect x="71" y="20" width="14" height="8" rx="1" />
-        <rect x="71" y="72" width="14" height="8" rx="1" />
-      </g>
-    </svg>
-  );
-};
-
 export default function Home() {
   return (
     <>
@@ -68,7 +37,7 @@ export default function Home() {
         <div className="container">
           <div className="header-inner">
             <Link href="/" className="logo">
-              <HaltereLogo />
+              <HaltereIconLogo size={40} color="currentColor" />
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <span style={{ letterSpacing: '0.3em' }}>haltere</span>
                 <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
@@ -76,8 +45,9 @@ export default function Home() {
             </Link>
             
             <nav className="nav">
-              <Link href="#manifesto" className="nav-link">Manifesto</Link>
               <Link href="#experiencia" className="nav-link">Experiencia</Link>
+              <Link href="#bienestar" className="nav-link">Bienestar</Link>
+              <Link href="#technogym" className="nav-link">Technogym</Link>
               <Link href="#clubes" className="nav-link">Clubes</Link>
               <Link href="/apply" className="btn">Ser socio</Link>
             </nav>
@@ -87,7 +57,6 @@ export default function Home() {
 
       {/* Hero Section with Remotion Animation */}
       <section className="hero" style={{ position: 'relative', overflow: 'hidden' }}>
-        {/* Remotion Animation Background */}
         <div style={{
           position: 'absolute',
           top: 0,
@@ -99,23 +68,22 @@ export default function Home() {
           <HeroPlayer />
         </div>
         
-        {/* Content Overlay */}
         <div className="container" style={{ position: 'relative', zIndex: 10 }}>
           <div className="hero-content animate-fadeInUp" style={{ 
-            backdropFilter: 'blur(2px)',
-            background: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(4px)',
+            background: 'rgba(0,0,0,0.4)',
             padding: '3rem',
             borderRadius: 'var(--radius-lg)',
-            border: '1px solid rgba(242, 187, 106, 0.1)',
+            border: '1px solid rgba(242, 187, 106, 0.15)',
           }}>
             <h1 className="hero-title">
               Club Silencioso<br />del Bienestar
             </h1>
             <p className="hero-subtitle">
-              Enfocados en satisfacer las necesidades físicas e intelectuales 
-              que impulsan la autorrealización, cultivando un sentido de 
-              pertenencia a través de valores compartidos. A la vez, garantizamos 
-              privacidad, excelencia y discreción en cada aspecto de nuestra experiencia.
+              Autorrealización a través de la satisfacción de las necesidades físicas 
+              e intelectuales. Sentimiento de pertenencia anónima, rodeándose de 
+              personas con los mismos valores. Consumo consciente y sostenible. 
+              Privacidad y discreción.
             </p>
             <Link href="/apply" className="btn btn-large" style={{
               background: 'var(--color-gold)',
@@ -127,86 +95,351 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Manifesto Section */}
-      <section className="section" id="manifesto">
+      {/* Un Club Privado de Bienestar */}
+      <section className="section" id="concepto">
         <div className="container">
           <div className="section-header">
-            <p className="section-subtitle">Nuestro Manifesto</p>
-            <h2>Silencio, Disciplina, Excelencia</h2>
+            <p className="section-subtitle">Quiet Luxury Club</p>
+            <h2>Un Club Privado de Bienestar</h2>
           </div>
           
-          <div className="features-grid">
-            <div className="feature-card animate-fadeInUp delay-1">
-              <div className="card-icon">🔒</div>
-              <h3 className="card-title">Privacidad Total</h3>
+          <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+            <p style={{ 
+              fontSize: '1.2rem', 
+              lineHeight: '1.8',
+              marginBottom: '3rem',
+              fontStyle: 'italic',
+              color: 'var(--color-cream)'
+            }}>
+              Ofrecer un espacio único, equipado con material de última generación, 
+              cerca de casa, donde el miembro pueda entrenar, pueda tener su propio 
+              espacio privado compartiendo los mismos valores con otros miembros del club, 
+              un lugar en el que se sienta como en casa y que pueda llamar suyo.
+            </p>
+            
+            <div className="grid grid-3" style={{ gap: '2rem' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔐</div>
+                <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem' }}>Exclusividad</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                  Sentimiento de exclusividad y pertenencia entre sus socios
+                </p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>👥</div>
+                <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem' }}>Comunidad</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                  Plataforma para conectarse con personas de valores afines
+                </p>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✨</div>
+                <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem' }}>Calidad</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                  Servicios y experiencias de alta calidad limitando el número de socios
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Experiencia Club 28250 */}
+      <section className="section" id="experiencia" style={{
+        background: 'linear-gradient(180deg, rgba(242, 187, 106, 0.05) 0%, transparent 100%)'
+      }}>
+        <div className="container">
+          <div className="section-header">
+            <p className="section-subtitle">La Experiencia</p>
+            <h2>Experiencia Club 28250</h2>
+          </div>
+          
+          <div className="grid grid-3">
+            <div className="card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                margin: '0 auto 1.5rem',
+                borderRadius: '50%',
+                background: 'rgba(242, 187, 106, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem'
+              }}>
+                🧘‍♀️
+              </div>
+              <h3 className="card-title" style={{ color: 'var(--color-gold)' }}>Máxima Privacidad</h3>
               <p className="card-text">
-                Un santuario donde tu tiempo y espacio son sagrados. 
-                Sin multitudes, sin distracciones.
+                Espacios diseñados para tu tranquilidad. Entrena sin interrupciones, 
+                sin multitudes, en tu propio santuario de bienestar.
               </p>
             </div>
             
-            <div className="feature-card animate-fadeInUp delay-2">
-              <div className="card-icon">⚡</div>
-              <h3 className="card-title">Acceso 24/7</h3>
+            <div className="card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                margin: '0 auto 1.5rem',
+                borderRadius: '50%',
+                background: 'rgba(242, 187, 106, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem'
+              }}>
+                🏋️
+              </div>
+              <h3 className="card-title" style={{ color: 'var(--color-gold)' }}>Material de Primer Nivel</h3>
               <p className="card-text">
-                Entrena cuando quieras. A las 4 AM o a medianoche, 
-                el club está disponible para ti.
+                Equipamiento premium de diseño exclusivo. Cada pieza seleccionada 
+                por su calidad excepcional y estética atemporal.
               </p>
             </div>
             
-            <div className="feature-card animate-fadeInUp delay-3">
-              <div className="card-icon">👤</div>
-              <h3 className="card-title">Profesionales Elite</h3>
+            <div className="card" style={{ textAlign: 'center', padding: '2.5rem 2rem' }}>
+              <div style={{ 
+                width: '80px', 
+                height: '80px', 
+                margin: '0 auto 1.5rem',
+                borderRadius: '50%',
+                background: 'rgba(242, 187, 106, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '2rem'
+              }}>
+                📱
+              </div>
+              <h3 className="card-title" style={{ color: 'var(--color-gold)' }}>Última Tecnología</h3>
               <p className="card-text">
-                Entrenadores personales y terapeutas seleccionados 
-                para guiar tu transformación.
-              </p>
-            </div>
-            
-            <div className="feature-card animate-fadeInUp delay-4">
-              <div className="card-icon">✨</div>
-              <h3 className="card-title">Exclusividad</h3>
-              <p className="card-text">
-                Membresía por invitación. Cada socio pasa por un 
-                proceso de selección riguroso.
+                Integración con Technogym para trackeo de progreso, 
+                entrenamientos personalizados y análisis de rendimiento en tiempo real.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Experience Section */}
-      <section className="section" id="experiencia" style={{
-        background: 'linear-gradient(180deg, rgba(242, 187, 106, 0.03) 0%, transparent 100%)'
+      {/* 6 Dimensiones del Bienestar */}
+      <section className="section" id="bienestar">
+        <div className="container">
+          <div className="section-header">
+            <p className="section-subtitle">Círculo Virtuoso</p>
+            <h2>6 Dimensiones del Bienestar</h2>
+            <p style={{ maxWidth: '600px', margin: '1rem auto 0', color: 'var(--color-gray)' }}>
+              Satisfacer las 6 dimensiones del bienestar que conducen a la autorrealización
+            </p>
+          </div>
+          
+          <div className="grid grid-3" style={{ gap: '1.5rem' }}>
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #F2BB6A'
+            }}>
+              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Mejorar la Salud
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Programas preventivos y recuperación activa
+              </p>
+            </div>
+            
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #D4A85A'
+            }}>
+              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Mejorar el Aspecto
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Transformación física guiada por profesionales
+              </p>
+            </div>
+            
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #B8956A'
+            }}>
+              <h3 style={{ color: 'var(--color-gold)', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Mejorar la Nutrición
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Asesoría nutricional personalizada
+              </p>
+            </div>
+            
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #9A8070'
+            }}>
+              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Dormir Mejor
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Protocolos de recuperación y descanso
+              </p>
+            </div>
+            
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #7A6A60'
+            }}>
+              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Concentración Plena
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Mindfulness y técnicas de enfoque mental
+              </p>
+            </div>
+            
+            <div className="card" style={{ 
+              padding: '1.5rem',
+              borderLeft: '3px solid #5A5050'
+            }}>
+              <h3 style={{ color: '#D4C9C2', marginBottom: '0.5rem', fontSize: '1.1rem' }}>
+                Mejor Forma Física
+              </h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--color-gray)' }}>
+                Entrenamiento funcional de precisión
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Technogym Precision Training */}
+      <section className="section" id="technogym" style={{
+        background: 'linear-gradient(180deg, transparent 0%, rgba(242, 187, 106, 0.03) 100%)'
       }}>
         <div className="container">
           <div className="section-header">
-            <p className="section-subtitle">La Experiencia</p>
-            <h2>Diseñado para tu Bienestar</h2>
+            <p className="section-subtitle">Tecnología Avanzada</p>
+            <h2>Entrenamiento de Precisión</h2>
           </div>
           
-          <div className="grid grid-3">
-            <div className="card">
-              <h3 className="card-title">Uso Privado</h3>
+          <div style={{ maxWidth: '800px', margin: '0 auto 3rem' }}>
+            <p style={{ 
+              fontSize: '1.15rem', 
+              lineHeight: '1.8',
+              textAlign: 'center',
+              color: 'var(--color-cream)'
+            }}>
+              En haltere se puede mejorar la eficiencia y la eficacia del entrenamiento 
+              gracias a una experiencia de entrenamiento fluida y personalizada, adaptada 
+              a las necesidades, las preferencias y el <strong style={{ color: 'var(--color-gold)' }}>
+              estilo de vida de cada miembro del Club</strong>.
+            </p>
+          </div>
+
+          <div className="grid grid-2" style={{ gap: '3rem', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ color: 'var(--color-gold)', marginBottom: '1.5rem', fontSize: '1.5rem' }}>
+                Evaluaciones Basadas en IA
+              </h3>
+              <p style={{ marginBottom: '2rem', lineHeight: '1.7' }}>
+                Transforma tu entrenamiento con evaluaciones basadas en IA para un 
+                entrenamiento personalizado y progresivo.
+              </p>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div style={{ padding: '1rem', background: 'rgba(242, 187, 106, 0.05)', borderRadius: '8px' }}>
+                  <h4 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', marginBottom: '0.3rem' }}>Movilidad</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
+                    Análisis de amplitud de movimiento
+                  </p>
+                </div>
+                <div style={{ padding: '1rem', background: 'rgba(242, 187, 106, 0.05)', borderRadius: '8px' }}>
+                  <h4 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', marginBottom: '0.3rem' }}>Balance</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
+                    Evaluación de equilibrio y estabilidad
+                  </p>
+                </div>
+                <div style={{ padding: '1rem', background: 'rgba(242, 187, 106, 0.05)', borderRadius: '8px' }}>
+                  <h4 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', marginBottom: '0.3rem' }}>Cuerpo</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
+                    Composición corporal detallada
+                  </p>
+                </div>
+                <div style={{ padding: '1rem', background: 'rgba(242, 187, 106, 0.05)', borderRadius: '8px' }}>
+                  <h4 style={{ color: 'var(--color-gold)', fontSize: '0.9rem', marginBottom: '0.3rem' }}>Mente</h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
+                    Habilidades cognitivas y atención
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h3 style={{ color: 'var(--color-gold)', marginBottom: '1.5rem', fontSize: '1.5rem' }}>
+                Protocolo Adaptable
+              </h3>
+              <p style={{ marginBottom: '1.5rem', lineHeight: '1.7' }}>
+                Basándose en los resultados de las pruebas, <strong style={{ color: 'var(--color-gold)' }}>
+                Technogym AI Coach</strong> ayuda a crear programas personalizados que están siempre 
+                disponibles en todos los dispositivos de entrenamiento.
+              </p>
+              <p style={{ lineHeight: '1.7', color: 'var(--color-gray)' }}>
+                Se adapta al progreso de los miembros para garantizar que alcancen 
+                resultados superiores más rápidamente. Seguimiento de los progresos 
+                con datos fiables a mano.
+              </p>
+              
+              <div style={{ 
+                marginTop: '2rem', 
+                padding: '1.5rem', 
+                background: 'rgba(242, 187, 106, 0.08)',
+                borderRadius: '12px',
+                borderLeft: '4px solid var(--color-gold)'
+              }}>
+                <p style={{ fontStyle: 'italic', fontSize: '0.95rem' }}>
+                  &quot;Variedad Infinita de Ejercicios. Resultados superiores más 
+                  rápidamente con Technogym Precision Training.&quot;
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Beneficios Membresía */}
+      <section className="section" id="beneficios">
+        <div className="container">
+          <div className="section-header">
+            <p className="section-subtitle">Beneficios</p>
+            <h2>Por qué un Club Privado</h2>
+          </div>
+          
+          <div className="features-grid">
+            <div className="feature-card animate-fadeInUp delay-1">
+              <h3 className="card-title">Networking</h3>
               <p className="card-text">
-                Reserva espacios completos para ti. Sala de pesas, 
-                área de yoga, o el gimnasio entero. Sin compartir.
+                Oportunidades de establecer contactos con compañeros, 
+                profesionales del bienestar y potenciales colaboradores.
               </p>
             </div>
             
-            <div className="card">
-              <h3 className="card-title">Sesiones 1 a 1</h3>
+            <div className="feature-card animate-fadeInUp delay-2">
+              <h3 className="card-title">Acceso Exclusivo</h3>
               <p className="card-text">
-                Trabaja con profesionales dedicados exclusivamente 
-                a tus objetivos y ritmo personal.
+                Instalaciones y servicios que no están disponibles en otros 
+                lugares, como formación y eventos especiales.
               </p>
             </div>
             
-            <div className="card">
-              <h3 className="card-title">Clases Selectas</h3>
+            <div className="feature-card animate-fadeInUp delay-3">
+              <h3 className="card-title">Comunidad</h3>
               <p className="card-text">
-                Grupos reducidos de máximo 6 personas. Intimidad 
-                y atención personalizada garantizada.
+                Sentido de comunidad entre nuestros socios, oportunidades para 
+                socializar y participar en intereses compartidos.
+              </p>
+            </div>
+            
+            <div className="feature-card animate-fadeInUp delay-4">
+              <h3 className="card-title">Prestigio</h3>
+              <p className="card-text">
+                Sensación de prestigio y estatus, así como acceso a eventos 
+                y oportunidades exclusivas.
               </p>
             </div>
           </div>
@@ -214,10 +447,12 @@ export default function Home() {
       </section>
 
       {/* Membership Section */}
-      <section className="section" id="membresia">
+      <section className="section" id="membresia" style={{
+        background: 'linear-gradient(180deg, rgba(242, 187, 106, 0.05) 0%, transparent 100%)'
+      }}>
         <div className="container">
           <div className="section-header">
-            <p className="section-subtitle">Membresía</p>
+            <p className="section-subtitle">Membresía Anual</p>
             <h2>Tu Camino al Bienestar</h2>
           </div>
           
@@ -226,15 +461,14 @@ export default function Home() {
             margin: '0 auto',
             textAlign: 'center'
           }}>
-            <p style={{ fontSize: '1.25rem', marginBottom: '2rem' }}>
-              La membresía anual incluye acceso ilimitado 24/7 a todas 
-              nuestras sedes, sistema de bonos para reservas, y prioridad 
-              de agendamiento sobre visitantes.
+            <p style={{ fontSize: '1.2rem', marginBottom: '2rem', lineHeight: '1.7' }}>
+              La membresía incluye acceso ilimitado 24/7 a todas nuestras sedes, 
+              sistema de bonos para reservas, y prioridad de agendamiento.
             </p>
             
             <div style={{
               display: 'inline-block',
-              padding: '2rem 3rem',
+              padding: '2.5rem 4rem',
               background: 'var(--color-brown-dark)',
               border: '1px solid rgba(242, 187, 106, 0.3)',
               borderRadius: 'var(--radius-lg)',
@@ -250,7 +484,7 @@ export default function Home() {
                 Membresía Anual
               </p>
               <p style={{ 
-                fontSize: '2.5rem', 
+                fontSize: '2.8rem', 
                 fontWeight: 600,
                 color: 'var(--color-gold)'
               }}>
@@ -274,13 +508,11 @@ export default function Home() {
       </section>
 
       {/* Clubs Section */}
-      <section className="section" id="clubes" style={{
-        background: 'linear-gradient(180deg, transparent 0%, rgba(242, 187, 106, 0.03) 100%)'
-      }}>
+      <section className="section" id="clubes">
         <div className="container">
           <div className="section-header">
-            <p className="section-subtitle">Nuestros Clubes</p>
-            <h2>Ubicaciones</h2>
+            <p className="section-subtitle">Ubicaciones</p>
+            <h2>Nuestros Clubes</h2>
           </div>
           
           <div className="grid grid-2" style={{ maxWidth: '900px', margin: '0 auto' }}>
@@ -323,7 +555,8 @@ export default function Home() {
         textAlign: 'center'
       }}>
         <div className="container">
-          <h2 style={{ marginBottom: '1rem' }}>¿Listo para comenzar?</h2>
+          <HaltereIconLogo size={60} color="#F2BB6A" className="animate-fadeInUp" />
+          <h2 style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>¿Listo para comenzar?</h2>
           <p style={{ 
             fontSize: '1.125rem', 
             maxWidth: '500px', 
@@ -343,7 +576,7 @@ export default function Home() {
         <div className="container">
           <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
             <Link href="/" className="logo" style={{ justifyContent: 'center' }}>
-              <HaltereLogo />
+              <HaltereIconLogo size={40} color="currentColor" />
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                 <span style={{ letterSpacing: '0.3em' }}>haltere</span>
                 <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
