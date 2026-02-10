@@ -13,12 +13,14 @@ const getSupabase = () => createClient(
 export default function UnifiedLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [checkingSession, setCheckingSession] = useState(true);
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'createApproved'>('login');
   const [approvedMember, setApprovedMember] = useState<{profileId: string, fullName: string} | null>(null);
+  const [showApplyPrompt, setShowApplyPrompt] = useState(false);
   const router = useRouter();
   const supabase = useMemo(() => getSupabase(), []);
 
@@ -41,19 +43,29 @@ export default function UnifiedLoginPage() {
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('role')
+        .select('role, member_status')
         .eq('id', userId)
         .single();
+
+      // Si no tiene rol o el rol es nulo/member con status pending
+      if (!profile?.role || (profile.role === 'member' && profile.member_status === 'pending')) {
+        setShowApplyPrompt(true);
+        setCheckingSession(false);
+        return;
+      }
 
       if (profile?.role === 'admin' || profile?.role === 'superadmin') {
         router.push('/admin');
       } else if (profile?.role === 'professional') {
         router.push('/professional');
-      } else {
+      } else if (profile?.member_status === 'active') {
         router.push('/member');
+      } else {
+        // Usuario sin rol activo
+        setShowApplyPrompt(true);
       }
     } catch (e) {
-      router.push('/member');
+      setShowApplyPrompt(true);
     }
   };
 
@@ -70,10 +82,8 @@ export default function UnifiedLoginPage() {
       if (data.approved) {
         setApprovedMember({ profileId: data.profileId, fullName: data.fullName });
         return true;
-      } else {
-        setError(data.message || 'Este email no tiene acceso');
-        return false;
       }
+      return false;
     } catch (err) {
       console.error('Error checking member:', err);
       return false;
@@ -87,25 +97,25 @@ export default function UnifiedLoginPage() {
     setSuccessMessage('');
 
     try {
-      // Intentar login normal primero
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (!authError && data.user) {
-        // Login exitoso
         await redirectBasedOnRole(data.user.id);
         return;
       }
 
-      // Si el login falla, verificar si es un miembro aprobado sin cuenta
       if (authError?.message?.includes('Invalid login credentials')) {
+        // Verificar si es un miembro aprobado sin cuenta
         const isApproved = await checkApprovedMember(email);
         if (isApproved) {
-          setMode('register');
+          setMode('createApproved');
           setError('');
           setSuccessMessage('¡Tu solicitud está aprobada! Ingresa una contraseña para crear tu cuenta.');
+        } else {
+          setError('Credenciales inválidas. Verifica tu email y contraseña.');
         }
       } else {
         throw authError;
@@ -117,7 +127,61 @@ export default function UnifiedLoginPage() {
     }
   };
 
-  const handleCreateAccount = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    if (password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      setLoading(false);
+      return;
+    }
+
+    if (!fullName.trim()) {
+      setError('Por favor ingresa tu nombre completo');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Crear cuenta con Supabase Auth
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login`,
+          data: {
+            full_name: fullName,
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        if (data.session) {
+          // Auto-confirmado, verificar rol
+          await redirectBasedOnRole(data.user.id);
+        } else {
+          setSuccessMessage('¡Cuenta creada! Revisa tu email para confirmar y luego inicia sesión.');
+          setMode('login');
+          setPassword('');
+        }
+      }
+    } catch (err: any) {
+      if (err.message?.includes('User already registered')) {
+        setError('Este email ya tiene una cuenta. Intenta iniciar sesión.');
+        setMode('login');
+      } else {
+        setError(err.message || 'Error al crear cuenta');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateApprovedAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -129,7 +193,6 @@ export default function UnifiedLoginPage() {
     }
 
     try {
-      // Crear cuenta con Supabase Auth
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -144,19 +207,16 @@ export default function UnifiedLoginPage() {
       if (signUpError) throw signUpError;
 
       if (data.user) {
-        // Si el email no requiere confirmación, hacer login directo
         if (data.session) {
           setSuccessMessage('¡Cuenta creada exitosamente!');
           await redirectBasedOnRole(data.user.id);
         } else {
-          // Si requiere confirmación de email
           setSuccessMessage('Cuenta creada. Revisa tu email para confirmar y luego inicia sesión.');
           setMode('login');
           setApprovedMember(null);
         }
       }
     } catch (err: any) {
-      // Si el usuario ya existe, intentar login
       if (err.message?.includes('User already registered')) {
         setError('Este email ya tiene una cuenta. Intenta iniciar sesión.');
         setMode('login');
@@ -190,6 +250,124 @@ export default function UnifiedLoginPage() {
             to { transform: rotate(360deg); }
           }
         `}</style>
+      </div>
+    );
+  }
+
+  // Pantalla de aplicar a membresía
+  if (showApplyPrompt) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(180deg, #1a1816 0%, #0d0c0b 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}>
+        <div style={{
+          width: '100%',
+          maxWidth: 480,
+          textAlign: 'center',
+        }}>
+          <div style={{
+            fontSize: '2rem',
+            fontWeight: 300,
+            letterSpacing: '0.4em',
+            color: '#F2BB6A',
+            marginBottom: 8,
+          }}>
+            HALTERE
+          </div>
+          <div style={{
+            fontSize: '0.7rem',
+            letterSpacing: '0.3em',
+            color: 'rgba(255,255,255,0.4)',
+            textTransform: 'uppercase',
+            marginBottom: 48,
+          }}>
+            Club Exclusivo
+          </div>
+
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.02)',
+            border: '1px solid rgba(242, 187, 106, 0.15)',
+            padding: '48px 40px',
+          }}>
+            <div style={{
+              width: 80,
+              height: 80,
+              borderRadius: '50%',
+              background: 'rgba(242, 187, 106, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 24px',
+              fontSize: '2rem',
+            }}>
+              👤
+            </div>
+
+            <h2 style={{
+              fontSize: '1.25rem',
+              fontWeight: 400,
+              color: 'rgba(255,255,255,0.9)',
+              marginBottom: 16,
+            }}>
+              ¡Bienvenido!
+            </h2>
+
+            <p style={{
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '0.95rem',
+              lineHeight: 1.6,
+              marginBottom: 32,
+            }}>
+              Tu cuenta ha sido creada exitosamente. Para acceder a los beneficios del club, 
+              necesitas aplicar a la membresía.
+            </p>
+
+            <Link
+              href="/apply"
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '16px',
+                background: '#F2BB6A',
+                color: '#0d0c0b',
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                letterSpacing: '0.2em',
+                textTransform: 'uppercase',
+                textDecoration: 'none',
+                textAlign: 'center',
+                border: 'none',
+              }}
+            >
+              Aplicar a Membresía
+            </Link>
+
+            <button
+              onClick={async () => {
+                await supabase.auth.signOut();
+                setShowApplyPrompt(false);
+                setMode('login');
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '0.8rem',
+                border: '1px solid rgba(255,255,255,0.1)',
+                cursor: 'pointer',
+                marginTop: 16,
+              }}
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -244,11 +422,13 @@ export default function UnifiedLoginPage() {
             marginBottom: 32,
             letterSpacing: '0.1em',
           }}>
-            {mode === 'login' ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            {mode === 'login' && 'Iniciar Sesión'}
+            {mode === 'register' && 'Crear Cuenta'}
+            {mode === 'createApproved' && 'Crear Cuenta'}
           </h1>
 
           {/* Mensaje de bienvenida para miembro aprobado */}
-          {mode === 'register' && approvedMember && (
+          {mode === 'createApproved' && approvedMember && (
             <div style={{
               padding: '16px',
               background: 'rgba(34, 197, 94, 0.1)',
@@ -265,7 +445,42 @@ export default function UnifiedLoginPage() {
             </div>
           )}
 
-          <form onSubmit={mode === 'login' ? handleLogin : handleCreateAccount}>
+          <form onSubmit={
+            mode === 'login' ? handleLogin : 
+            mode === 'register' ? handleRegister : 
+            handleCreateApprovedAccount
+          }>
+            {/* Nombre completo solo en registro libre */}
+            {mode === 'register' && (
+              <div style={{ marginBottom: 24 }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.15em',
+                  color: 'rgba(255,255,255,0.5)',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                }}>
+                  Nombre Completo
+                </label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '14px 16px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(242, 187, 106, 0.2)',
+                    color: 'rgba(255,255,255,0.9)',
+                    fontSize: '1rem',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+            )}
+
             <div style={{ marginBottom: 24 }}>
               <label style={{
                 display: 'block',
@@ -282,11 +497,11 @@ export default function UnifiedLoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={mode === 'register'}
+                disabled={mode === 'createApproved'}
                 style={{
                   width: '100%',
                   padding: '14px 16px',
-                  background: mode === 'register' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)',
+                  background: mode === 'createApproved' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.3)',
                   border: '1px solid rgba(242, 187, 106, 0.2)',
                   color: 'rgba(255,255,255,0.9)',
                   fontSize: '1rem',
@@ -304,14 +519,14 @@ export default function UnifiedLoginPage() {
                 textTransform: 'uppercase',
                 marginBottom: 8,
               }}>
-                Contraseña {mode === 'register' && '(mínimo 6 caracteres)'}
+                Contraseña {(mode === 'register' || mode === 'createApproved') && '(mínimo 6 caracteres)'}
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={mode === 'register' ? 6 : undefined}
+                minLength={(mode === 'register' || mode === 'createApproved') ? 6 : undefined}
                 style={{
                   width: '100%',
                   padding: '14px 16px',
@@ -376,14 +591,38 @@ export default function UnifiedLoginPage() {
             </button>
           </form>
 
+          {/* Toggle entre login y registro */}
+          {mode === 'login' && (
+            <button
+              onClick={() => {
+                setMode('register');
+                setError('');
+                setSuccessMessage('');
+              }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '0.8rem',
+                border: '1px solid rgba(255,255,255,0.1)',
+                cursor: 'pointer',
+                marginTop: 16,
+              }}
+            >
+              ¿No tienes cuenta? Regístrate
+            </button>
+          )}
+
           {/* Volver a login si está en modo registro */}
-          {mode === 'register' && (
+          {(mode === 'register' || mode === 'createApproved') && (
             <button
               onClick={() => {
                 setMode('login');
                 setApprovedMember(null);
                 setError('');
                 setSuccessMessage('');
+                setFullName('');
               }}
               style={{
                 width: '100%',
@@ -410,12 +649,12 @@ export default function UnifiedLoginPage() {
             fontSize: '0.875rem',
             color: 'rgba(255,255,255,0.4)',
           }}>
-            ¿No tienes cuenta?{' '}
+            ¿Ya eres miembro aprobado?{' '}
             <Link href="/apply" style={{
               color: '#F2BB6A',
               textDecoration: 'none',
             }}>
-              Aplica aquí
+              Ver estado de solicitud
             </Link>
           </p>
         </div>
