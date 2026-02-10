@@ -7,10 +7,11 @@
  * according to the official Technogym Postman collection (MANDATORY STEPS + INTERACTION EXAMPLES)
  */
 
-// Environment configuration
-const API_BASE_URL = process.env.TECHNOGYM_ENV === 'production' 
-  ? 'https://api.mywellness.com'
-  : 'https://api-dev.mywellness.com';
+// Environment configuration - ALWAYS use production
+// api-dev.mywellness.com for testing, api.mywellness.com for production
+const API_BASE_URL = process.env.TECHNOGYM_ENV === 'development' 
+  ? 'https://api-dev.mywellness.com'
+  : 'https://api.mywellness.com';
 
 // The application ID is fixed for third-party integrations
 const APPLICATION_ID = '69295ed5-a53c-434b-8518-f2e0b5f05b28';
