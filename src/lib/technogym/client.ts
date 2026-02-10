@@ -79,6 +79,7 @@ export interface UserStats {
 
 /**
  * Authenticate and get access token
+ * Documentation: https://apidocs.mywellness.com/#d8b453a6-b0db-4e29-9a55-44dbd79ac183
  */
 async function authenticate(): Promise<string> {
   // Check if we have a valid cached token
@@ -86,7 +87,10 @@ async function authenticate(): Promise<string> {
     return accessToken;
   }
 
-  const url = `${API_BASE_URL}/${FACILITY_URL}/application/69295ed5-a53c-434b-8518-f2e0b5f05b28/accessintegration`;
+  // The application ID in the URL is the API_KEY itself
+  const url = `${API_BASE_URL}/${FACILITY_URL}/application/${API_KEY}/accessintegration`;
+  
+  console.log('[Technogym] Authenticating with URL:', url);
   
   const response = await fetch(url, {
     method: 'POST',
@@ -94,7 +98,6 @@ async function authenticate(): Promise<string> {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      apiKey: API_KEY,
       username: USERNAME,
       password: PASSWORD,
     }),
@@ -102,18 +105,25 @@ async function authenticate(): Promise<string> {
 
   if (!response.ok) {
     const error = await response.text();
+    console.error('[Technogym] Auth failed:', error);
     throw new Error(`Technogym authentication failed: ${error}`);
   }
 
   const data = await response.json();
   
-  accessToken = data.data.accessToken;
-  facilityId = data.data.facilities?.[0]?.id;
+  console.log('[Technogym] Auth response:', JSON.stringify(data, null, 2));
+  
+  accessToken = data.data?.accessToken || data.accessToken;
+  facilityId = data.data?.facilities?.[0]?.id || data.facilities?.[0]?.id;
   
   // Token valid for 30 minutes, refresh at 25 minutes
   tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
   
-  return accessToken!;
+  if (!accessToken) {
+    throw new Error('Technogym authentication failed: No access token in response');
+  }
+  
+  return accessToken;
 }
 
 /**
