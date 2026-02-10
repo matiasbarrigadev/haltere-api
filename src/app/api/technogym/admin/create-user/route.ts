@@ -11,11 +11,16 @@ import {
  * POST /api/technogym/admin/create-user
  * Create a Technogym user from admin panel
  * Body: { userId, email, fullName, membershipStartOn?, membershipExpiresOn? }
+ * 
+ * MATCHING LOGIC:
+ * - If firstName + lastName + gender + dateOfBirth match existing user -> MatchFound (returns existing)
+ * - If multiple matches -> UserEmailAndDataMatchFound (returns list to choose from)
+ * - If no match -> Created (new user)
  */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { userId, email, fullName, membershipStartOn, membershipExpiresOn } = body;
+    const { userId, email, fullName, membershipStartOn, membershipExpiresOn, dateOfBirth, gender } = body;
 
     if (!userId || !email || !fullName) {
       return NextResponse.json(
@@ -81,16 +86,29 @@ export async function POST(request: Request) {
     const firstName = nameParts[0] || 'Member';
     const lastName = nameParts.slice(1).join(' ') || '';
 
-    const newUser = await createTechnogymUser({
+    const createResult = await createTechnogymUser({
       email,
       firstName,
       lastName,
       externalId: userId, // Link to Haltere user ID
+      dateOfBirth,
+      gender,
     });
+
+    // Handle multiple matches case - requires user intervention
+    if (!createResult.success) {
+      return NextResponse.json({
+        success: false,
+        result: createResult.result,
+        message: createResult.message,
+        matchedUsers: createResult.matchedUsers,
+        requiresSelection: true,
+      }, { status: 409 }); // Conflict - multiple matches found
+    }
 
     // If membership dates provided, subscribe the user
     if (membershipStartOn && membershipExpiresOn) {
-      await subscribeUser(newUser.facilityUserId, {
+      await subscribeUser(createResult.facilityUserId, {
         startOn: membershipStartOn,
         expiresOn: membershipExpiresOn,
         description: 'Club Haltere Membership',
@@ -101,20 +119,23 @@ export async function POST(request: Request) {
     await supabase
       .from('user_profiles')
       .update({ 
-        technogym_user_id: newUser.userId,
-        technogym_facility_user_id: newUser.facilityUserId,
-        technogym_permanent_token: newUser.permanentToken,
+        technogym_user_id: createResult.userId,
+        technogym_facility_user_id: createResult.facilityUserId,
+        technogym_permanent_token: createResult.permanentToken,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any)
       .eq('user_id', userId);
 
     return NextResponse.json({
       success: true,
-      message: 'Technogym user created successfully',
-      technogymUserId: newUser.userId,
-      facilityUserId: newUser.facilityUserId,
-      permanentToken: newUser.permanentToken,
-      alreadyExists: newUser.result === 'AlreadyExists',
+      message: createResult.isExisting 
+        ? 'Linked to existing Technogym account (matching user found)'
+        : 'Technogym user created successfully',
+      technogymUserId: createResult.userId,
+      facilityUserId: createResult.facilityUserId,
+      permanentToken: createResult.permanentToken,
+      result: createResult.result,
+      isExisting: createResult.isExisting,
     });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {

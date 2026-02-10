@@ -41,10 +41,16 @@ interface TechnogymAuthResponse {
 
 export interface CreateUserResponse {
   data: {
-    result: 'Created' | 'AlreadyExists';
-    userId: string;
-    facilityUserId: string;
-    permanentToken: string;
+    result: 'Created' | 'MatchFound' | 'UserEmailAndDataMatchFound' | 'AlreadyExists';
+    userId?: string;
+    facilityUserId?: string;
+    permanentToken?: string;
+    // For multiple matches case
+    matchedUsers?: Array<{
+      userId: string;
+      facilityUserId: string;
+      email: string;
+    }>;
   };
 }
 
@@ -260,9 +266,34 @@ async function apiRequest<T>(
 // USER MANAGEMENT (CORE LAYER)
 // =============================================================================
 
+export type CreateUserResult = 
+  | { 
+      success: true;
+      result: 'Created' | 'MatchFound';
+      userId: string;
+      facilityUserId: string;
+      permanentToken: string;
+      isExisting: boolean;
+    }
+  | {
+      success: false;
+      result: 'UserEmailAndDataMatchFound';
+      matchedUsers: Array<{
+        userId: string;
+        facilityUserId: string;
+        email: string;
+      }>;
+      message: string;
+    };
+
 /**
  * Create a new user in Technogym facility
  * Endpoint: POST /core/facility/{facilityId}/CreateFacilityUserFromThirdParty
+ * 
+ * MATCHING LOGIC:
+ * - If firstName + lastName + gender + dateOfBirth match existing user -> MatchFound (returns existing user)
+ * - If multiple matches -> UserEmailAndDataMatchFound (returns list to choose from)
+ * - If no match -> Created (new user)
  */
 export async function createUser(userData: {
   firstName: string;
@@ -271,12 +302,7 @@ export async function createUser(userData: {
   dateOfBirth?: string; // Format: YYYY-MM-DD
   gender?: 'M' | 'F';
   externalId?: string; // Your internal user ID
-}): Promise<{
-  userId: string;
-  facilityUserId: string;
-  permanentToken: string;
-  result: 'Created' | 'AlreadyExists';
-}> {
+}): Promise<CreateUserResult> {
   const response = await apiRequest<CreateUserResponse>(
     '/core/facility/{facilityId}/CreateFacilityUserFromThirdParty',
     {
@@ -289,17 +315,35 @@ export async function createUser(userData: {
     }
   );
 
-  console.log('[Technogym] User created:', {
+  console.log('[Technogym] CreateUser response:', {
+    result: response.data.result,
     userId: response.data.userId,
     facilityUserId: response.data.facilityUserId,
-    result: response.data.result,
+    matchedUsersCount: response.data.matchedUsers?.length,
   });
 
+  // Handle multiple matches case - requires user intervention
+  if (response.data.result === 'UserEmailAndDataMatchFound' && response.data.matchedUsers) {
+    return {
+      success: false,
+      result: 'UserEmailAndDataMatchFound',
+      matchedUsers: response.data.matchedUsers,
+      message: `Multiple matching users found (${response.data.matchedUsers.length}). Please select the correct one.`,
+    };
+  }
+
+  // Handle Created or MatchFound (both return user data)
+  if (!response.data.userId || !response.data.facilityUserId || !response.data.permanentToken) {
+    throw new Error(`Technogym API error: Missing user data in response for result: ${response.data.result}`);
+  }
+
   return {
+    success: true,
+    result: response.data.result === 'MatchFound' ? 'MatchFound' : 'Created',
     userId: response.data.userId,
     facilityUserId: response.data.facilityUserId,
     permanentToken: response.data.permanentToken,
-    result: response.data.result,
+    isExisting: response.data.result === 'MatchFound' || response.data.result === 'AlreadyExists',
   };
 }
 
@@ -542,8 +586,28 @@ export function clearTokenCache(): void {
 // WORKFLOW HELPERS
 // =============================================================================
 
+export type OnboardResult = 
+  | {
+      success: true;
+      userId: string;
+      facilityUserId: string;
+      permanentToken: string;
+      isExisting: boolean;
+    }
+  | {
+      success: false;
+      result: 'UserEmailAndDataMatchFound';
+      matchedUsers: Array<{
+        userId: string;
+        facilityUserId: string;
+        email: string;
+      }>;
+      message: string;
+    };
+
 /**
  * Complete workflow: Create user, update details, and subscribe
+ * Handles Matching Logic for existing users
  */
 export async function onboardNewMember(memberData: {
   firstName: string;
@@ -561,12 +625,8 @@ export async function onboardNewMember(memberData: {
   phone?: string;
   mobilePhone?: string;
   notes?: string;
-}): Promise<{
-  userId: string;
-  facilityUserId: string;
-  permanentToken: string;
-}> {
-  // Step 1: Create user
+}): Promise<OnboardResult> {
+  // Step 1: Create user (handles matching logic)
   const createResult = await createUser({
     firstName: memberData.firstName,
     lastName: memberData.lastName,
@@ -575,6 +635,11 @@ export async function onboardNewMember(memberData: {
     gender: memberData.gender,
     externalId: memberData.externalId,
   });
+
+  // If multiple matches found, return for user selection
+  if (!createResult.success) {
+    return createResult;
+  }
 
   // Step 2: Update with additional info if provided
   const hasAdditionalInfo = memberData.address || memberData.city || memberData.phone || memberData.notes;
@@ -601,12 +666,15 @@ export async function onboardNewMember(memberData: {
     userId: createResult.userId,
     facilityUserId: createResult.facilityUserId,
     email: memberData.email,
+    isExisting: createResult.isExisting,
   });
 
   return {
+    success: true,
     userId: createResult.userId,
     facilityUserId: createResult.facilityUserId,
     permanentToken: createResult.permanentToken,
+    isExisting: createResult.isExisting,
   };
 }
 
