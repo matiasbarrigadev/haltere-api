@@ -127,15 +127,44 @@ La API S2S **no permite listar todos los usuarios** de una facility. Para obtene
 
 ### Método de Matching (Coincidencia)
 
-El endpoint `CreateFacilityUserFromThirdParty` puede usarse para hacer matching:
+El endpoint `CreateFacilityUserFromThirdParty` implementa una **lógica de coincidencia (Matching Logic)** para evitar duplicados:
 
-- Si envías datos de un usuario que **ya existe** en Technogym (mismo email), retorna `result: 'AlreadyExists'`
-- Devuelve el `permanentToken`, `userId` y `facilityUserId` del usuario existente
-- Esto permite vincular usuarios sin necesidad de listarlos
+#### Campos de Matching
+La API considera que un usuario ya existe si coinciden **exactamente**:
+- `firstName` (nombre)
+- `lastName` (apellido)
+- `gender` (género)
+- `dateOfBirth` (fecha de nacimiento)
+
+#### Escenarios de Respuesta
+
+| Resultado | Descripción | Acción |
+|-----------|-------------|--------|
+| `Created` | Usuario nuevo creado | Guardar IDs y permanentToken |
+| `MatchFound` | Coincidencia única encontrada | Usar datos del usuario existente |
+| `UserEmailAndDataMatchFound` | Múltiples coincidencias | Seleccionar usuario correcto manualmente |
+
+#### Respuesta para Múltiples Coincidencias (409 Conflict)
+
+Si hay múltiples usuarios con los mismos datos básicos:
+
+```json
+{
+  "success": false,
+  "result": "UserEmailAndDataMatchFound",
+  "matchedUsers": [
+    { "userId": "xxx", "facilityUserId": "yyy", "email": "j***@example.com" },
+    { "userId": "aaa", "facilityUserId": "bbb", "email": "ju***@other.com" }
+  ],
+  "requiresSelection": true
+}
+```
+
+El administrador debe seleccionar el usuario correcto basándose en el email ofuscado.
 
 ```typescript
-// Ejemplo de matching
-const result = await matchUserByData({
+// Ejemplo de uso con matching automático
+const result = await createUser({
   firstName: 'Juan',
   lastName: 'Pérez', 
   email: 'juan@ejemplo.com',
@@ -143,8 +172,14 @@ const result = await matchUserByData({
   gender: 'M'
 });
 
-// result.wasMatched = true si el usuario ya existía
-// result.permanentToken = token para futuros accesos
+if (result.success) {
+  // Caso Created o MatchFound
+  console.log('Usuario:', result.userId);
+  console.log('Existente:', result.isExisting);
+} else {
+  // Caso UserEmailAndDataMatchFound - requiere intervención
+  console.log('Múltiples usuarios encontrados:', result.matchedUsers);
+}
 ```
 
 ### Webhooks para Sincronización en Tiempo Real
