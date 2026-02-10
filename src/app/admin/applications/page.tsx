@@ -1,45 +1,68 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+
+interface ApplicationNotes {
+  occupation?: string;
+  linkedin_url?: string;
+  referral_source?: string;
+  referral_name?: string;
+  fitness_goals?: string;
+  preferred_location?: string;
+  schedule_preference?: string;
+  additional_notes?: string;
+  raw?: string;
+}
 
 interface Application {
   id: string;
   full_name: string;
   email: string;
-  phone: string;
-  occupation: string;
-  motivation: string;
-  referral_source: string;
-  status: 'pending' | 'approved' | 'rejected' | 'interview';
+  phone: string | null;
+  member_status: 'pending_approval' | 'interview' | 'active' | 'rejected';
+  application_notes: ApplicationNotes | null;
+  application_date: string;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
-  reviewed_at?: string;
 }
 
-// Mock data para demostración
-const mockApplications: Application[] = [
-  { id: '1', full_name: 'Alejandro Torres', email: 'atorres@email.com', phone: '+56 9 8765 4321', occupation: 'CEO Startup Tech', motivation: 'Busco un espacio exclusivo para mantener mi rutina de ejercicios con equipamiento de primera calidad.', referral_source: 'Recomendación', status: 'pending', created_at: '2026-02-07T10:00:00' },
-  { id: '2', full_name: 'Isabella Vega', email: 'ivega@empresa.cl', phone: '+56 9 1234 5678', occupation: 'Directora de Marketing', motivation: 'Me interesa el concepto de club privado y las 6 dimensiones del bienestar.', referral_source: 'Instagram', status: 'interview', created_at: '2026-02-06T14:00:00' },
-  { id: '3', full_name: 'Sebastián Muñoz', email: 'smunoz@corp.com', phone: '+56 9 8888 7777', occupation: 'Inversionista', motivation: 'Quiero un lugar tranquilo sin las aglomeraciones de un gimnasio tradicional.', referral_source: 'LinkedIn', status: 'pending', created_at: '2026-02-05T09:00:00' },
-  { id: '4', full_name: 'Valentina Rojas', email: 'vrojas@mail.com', phone: '+56 9 5555 4444', occupation: 'Médica Cardióloga', motivation: 'Priorizo mi salud y busco un ambiente profesional para entrenar.', referral_source: 'Google', status: 'approved', created_at: '2026-02-04T11:00:00', reviewed_at: '2026-02-05T15:00:00' },
-  { id: '5', full_name: 'Matías Herrera', email: 'mherrera@test.com', phone: '+56 9 3333 2222', occupation: 'Abogado Corporativo', motivation: 'Necesito flexibilidad de horarios y privacidad.', referral_source: 'Amigo miembro', status: 'rejected', created_at: '2026-02-03T16:00:00', reviewed_at: '2026-02-04T10:00:00' },
-];
+type FilterStatus = 'all' | 'pending_approval' | 'interview' | 'active' | 'rejected';
 
 export default function ApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'interview' | 'approved' | 'rejected'>('all');
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterStatus>('all');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  const fetchApplications = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await fetch('/api/admin/applications');
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al cargar solicitudes');
+      }
+      
+      setApplications(result.data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    setTimeout(() => {
-      setApplications(mockApplications);
-      setIsLoading(false);
-    }, 500);
-  }, []);
+    fetchApplications();
+  }, [fetchApplications]);
 
   const filteredApplications = applications.filter((app) => {
     if (filter === 'all') return true;
-    return app.status === filter;
+    return app.member_status === filter;
   });
 
   const getStatusBadge = (status: string) => {
@@ -54,11 +77,11 @@ export default function ApplicationsPage() {
     };
     
     switch (status) {
-      case 'pending':
+      case 'pending_approval':
         return <span style={{ ...baseStyle, backgroundColor: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>● Pendiente</span>;
       case 'interview':
         return <span style={{ ...baseStyle, backgroundColor: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6' }}>● Entrevista</span>;
-      case 'approved':
+      case 'active':
         return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>● Aprobada</span>;
       case 'rejected':
         return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>● Rechazada</span>;
@@ -67,13 +90,64 @@ export default function ApplicationsPage() {
     }
   };
 
-  const handleStatusChange = (appId: string, newStatus: Application['status']) => {
-    setApplications(applications.map(app => 
-      app.id === appId 
-        ? { ...app, status: newStatus, reviewed_at: new Date().toISOString() }
-        : app
-    ));
-    setSelectedApp(null);
+  const handleStatusChange = async (appId: string, newStatus: Application['member_status']) => {
+    try {
+      setUpdating(appId);
+      const response = await fetch('/api/admin/applications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: appId, member_status: newStatus })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Error al actualizar');
+      }
+
+      // Actualizar estado local
+      setApplications(applications.map(app => 
+        app.id === appId 
+          ? { ...app, member_status: newStatus, approved_at: newStatus === 'active' || newStatus === 'rejected' ? new Date().toISOString() : app.approved_at }
+          : app
+      ));
+      setSelectedApp(null);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al actualizar');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const getLocationLabel = (location: string | undefined) => {
+    const locations: Record<string, string> = {
+      'lo_barnechea': 'Lo Barnechea',
+      'las_condes': 'Las Condes',
+      'vitacura': 'Vitacura'
+    };
+    return location ? locations[location] || location : 'No especificado';
+  };
+
+  const getScheduleLabel = (schedule: string | undefined) => {
+    const schedules: Record<string, string> = {
+      'early_morning': 'Mañana temprano (6-9 AM)',
+      'morning': 'Mañana (9-12 PM)',
+      'afternoon': 'Tarde (12-6 PM)',
+      'evening': 'Noche (6-10 PM)',
+      'flexible': 'Flexible'
+    };
+    return schedule ? schedules[schedule] || schedule : 'No especificado';
+  };
+
+  const getReferralLabel = (source: string | undefined) => {
+    const sources: Record<string, string> = {
+      'member_referral': 'Referido por miembro',
+      'google': 'Google',
+      'instagram': 'Instagram',
+      'linkedin': 'LinkedIn',
+      'other': 'Otro'
+    };
+    return source ? sources[source] || source : 'No especificado';
   };
 
   if (isLoading) {
@@ -92,9 +166,39 @@ export default function ApplicationsPage() {
     );
   }
 
-  const pendingCount = applications.filter(a => a.status === 'pending').length;
-  const interviewCount = applications.filter(a => a.status === 'interview').length;
-  const approvedCount = applications.filter(a => a.status === 'approved').length;
+  if (error) {
+    return (
+      <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+        <div style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+          border: '1px solid rgba(239, 68, 68, 0.3)',
+          borderRadius: '16px',
+          padding: '24px',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: '#ef4444', margin: 0, marginBottom: '16px' }}>Error: {error}</p>
+          <button
+            onClick={fetchApplications}
+            style={{
+              backgroundColor: '#d4af37',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '10px 20px',
+              color: '#0a0a0a',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const pendingCount = applications.filter(a => a.member_status === 'pending_approval').length;
+  const interviewCount = applications.filter(a => a.member_status === 'interview').length;
+  const approvedCount = applications.filter(a => a.member_status === 'active').length;
 
   return (
     <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -108,19 +212,22 @@ export default function ApplicationsPage() {
             Gestiona las solicitudes de nuevos miembros
           </p>
         </div>
-        <button style={{
-          backgroundColor: 'transparent',
-          border: '1px solid #333333',
-          borderRadius: '8px',
-          padding: '10px 20px',
-          color: '#999999',
-          fontSize: '14px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          📊 Exportar Lista
+        <button
+          onClick={fetchApplications}
+          style={{
+            backgroundColor: 'transparent',
+            border: '1px solid #333333',
+            borderRadius: '8px',
+            padding: '10px 20px',
+            color: '#999999',
+            fontSize: '14px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          🔄 Actualizar
         </button>
       </div>
 
@@ -150,21 +257,27 @@ export default function ApplicationsPage() {
       {/* Filters */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
         <div style={{ display: 'flex', backgroundColor: '#111111', border: '1px solid #222222', borderRadius: '8px', overflow: 'hidden' }}>
-          {(['all', 'pending', 'interview', 'approved', 'rejected'] as const).map((status) => (
+          {([
+            { key: 'all', label: 'Todas' },
+            { key: 'pending_approval', label: 'Pendientes' },
+            { key: 'interview', label: 'Entrevista' },
+            { key: 'active', label: 'Aprobadas' },
+            { key: 'rejected', label: 'Rechazadas' }
+          ] as const).map((item) => (
             <button
-              key={status}
-              onClick={() => setFilter(status)}
+              key={item.key}
+              onClick={() => setFilter(item.key)}
               style={{
                 padding: '10px 16px',
                 fontSize: '14px',
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                backgroundColor: filter === status ? 'rgba(212, 175, 55, 0.15)' : 'transparent',
-                color: filter === status ? '#d4af37' : '#666666'
+                backgroundColor: filter === item.key ? 'rgba(212, 175, 55, 0.15)' : 'transparent',
+                color: filter === item.key ? '#d4af37' : '#666666'
               }}
             >
-              {status === 'all' ? 'Todas' : status === 'pending' ? 'Pendientes' : status === 'interview' ? 'Entrevista' : status === 'approved' ? 'Aprobadas' : 'Rechazadas'}
+              {item.label}
             </button>
           ))}
         </div>
@@ -213,7 +326,7 @@ export default function ApplicationsPage() {
                   </div>
                   <div>
                     <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>{app.full_name}</p>
-                    <p style={{ margin: 0, color: '#666666', fontSize: '13px' }}>{app.occupation}</p>
+                    <p style={{ margin: 0, color: '#666666', fontSize: '13px' }}>{app.application_notes?.occupation || 'Sin ocupación'}</p>
                   </div>
                 </div>
 
@@ -225,12 +338,12 @@ export default function ApplicationsPage() {
                 <div>
                   <p style={{ margin: 0, color: '#999999', fontSize: '13px' }}>Fecha</p>
                   <p style={{ margin: 0, color: '#ffffff', fontWeight: 500 }}>
-                    {new Date(app.created_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })}
+                    {new Date(app.application_date).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
                   </p>
                 </div>
 
                 <div>
-                  {getStatusBadge(app.status)}
+                  {getStatusBadge(app.member_status)}
                 </div>
 
                 <div style={{ color: '#666666', fontSize: '20px' }}>
@@ -242,27 +355,70 @@ export default function ApplicationsPage() {
               {selectedApp?.id === app.id && (
                 <div style={{ padding: '0 24px 24px 24px', borderTop: '1px solid #222222' }}>
                   <div style={{ paddingTop: '20px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '20px' }}>
+                    {/* Info Grid */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
                       <div>
                         <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Teléfono</p>
-                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{app.phone}</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{app.phone || 'No especificado'}</p>
                       </div>
                       <div>
                         <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Cómo nos conoció</p>
-                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{app.referral_source}</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{getReferralLabel(app.application_notes?.referral_source)}</p>
                       </div>
+                      {app.application_notes?.referral_name && (
+                        <div>
+                          <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Referido por</p>
+                          <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{app.application_notes.referral_name}</p>
+                        </div>
+                      )}
                     </div>
 
-                    <div style={{ marginBottom: '24px' }}>
-                      <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Motivación</p>
-                      <p style={{ margin: 0, fontSize: '14px', color: '#999999', lineHeight: '1.6' }}>{app.motivation}</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Ubicación Preferida</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{getLocationLabel(app.application_notes?.preferred_location)}</p>
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Horario Preferido</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{getScheduleLabel(app.application_notes?.schedule_preference)}</p>
+                      </div>
+                      {app.application_notes?.linkedin_url && (
+                        <div>
+                          <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>LinkedIn</p>
+                          <a 
+                            href={app.application_notes.linkedin_url.startsWith('http') ? app.application_notes.linkedin_url : `https://${app.application_notes.linkedin_url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#d4af37', fontSize: '14px', textDecoration: 'none' }}
+                          >
+                            Ver perfil →
+                          </a>
+                        </div>
+                      )}
                     </div>
+
+                    {/* Objetivos */}
+                    {app.application_notes?.fitness_goals && (
+                      <div style={{ marginBottom: '20px' }}>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Objetivos de Fitness</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#999999', lineHeight: '1.6' }}>{app.application_notes.fitness_goals}</p>
+                      </div>
+                    )}
+
+                    {/* Notas adicionales */}
+                    {app.application_notes?.additional_notes && (
+                      <div style={{ marginBottom: '24px' }}>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Notas Adicionales</p>
+                        <p style={{ margin: 0, fontSize: '14px', color: '#999999', lineHeight: '1.6' }}>{app.application_notes.additional_notes}</p>
+                      </div>
+                    )}
 
                     {/* Actions */}
-                    {app.status === 'pending' && (
+                    {app.member_status === 'pending_approval' && (
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <button
                           onClick={() => handleStatusChange(app.id, 'interview')}
+                          disabled={updating === app.id}
                           style={{
                             flex: 1,
                             backgroundColor: 'rgba(139, 92, 246, 0.1)',
@@ -272,13 +428,15 @@ export default function ApplicationsPage() {
                             color: '#8b5cf6',
                             fontSize: '14px',
                             fontWeight: 500,
-                            cursor: 'pointer'
+                            cursor: updating === app.id ? 'not-allowed' : 'pointer',
+                            opacity: updating === app.id ? 0.5 : 1
                           }}
                         >
                           🎤 Agendar Entrevista
                         </button>
                         <button
-                          onClick={() => handleStatusChange(app.id, 'approved')}
+                          onClick={() => handleStatusChange(app.id, 'active')}
+                          disabled={updating === app.id}
                           style={{
                             flex: 1,
                             backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -288,13 +446,15 @@ export default function ApplicationsPage() {
                             color: '#22c55e',
                             fontSize: '14px',
                             fontWeight: 500,
-                            cursor: 'pointer'
+                            cursor: updating === app.id ? 'not-allowed' : 'pointer',
+                            opacity: updating === app.id ? 0.5 : 1
                           }}
                         >
                           ✓ Aprobar
                         </button>
                         <button
                           onClick={() => handleStatusChange(app.id, 'rejected')}
+                          disabled={updating === app.id}
                           style={{
                             flex: 1,
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -304,7 +464,8 @@ export default function ApplicationsPage() {
                             color: '#ef4444',
                             fontSize: '14px',
                             fontWeight: 500,
-                            cursor: 'pointer'
+                            cursor: updating === app.id ? 'not-allowed' : 'pointer',
+                            opacity: updating === app.id ? 0.5 : 1
                           }}
                         >
                           ✕ Rechazar
@@ -312,10 +473,11 @@ export default function ApplicationsPage() {
                       </div>
                     )}
 
-                    {app.status === 'interview' && (
+                    {app.member_status === 'interview' && (
                       <div style={{ display: 'flex', gap: '12px' }}>
                         <button
-                          onClick={() => handleStatusChange(app.id, 'approved')}
+                          onClick={() => handleStatusChange(app.id, 'active')}
+                          disabled={updating === app.id}
                           style={{
                             flex: 1,
                             backgroundColor: '#d4af37',
@@ -325,13 +487,15 @@ export default function ApplicationsPage() {
                             color: '#0a0a0a',
                             fontSize: '14px',
                             fontWeight: 600,
-                            cursor: 'pointer'
+                            cursor: updating === app.id ? 'not-allowed' : 'pointer',
+                            opacity: updating === app.id ? 0.5 : 1
                           }}
                         >
                           ✓ Aprobar Membresía
                         </button>
                         <button
                           onClick={() => handleStatusChange(app.id, 'rejected')}
+                          disabled={updating === app.id}
                           style={{
                             flex: 1,
                             backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -341,7 +505,8 @@ export default function ApplicationsPage() {
                             color: '#ef4444',
                             fontSize: '14px',
                             fontWeight: 500,
-                            cursor: 'pointer'
+                            cursor: updating === app.id ? 'not-allowed' : 'pointer',
+                            opacity: updating === app.id ? 0.5 : 1
                           }}
                         >
                           ✕ Rechazar
@@ -349,7 +514,7 @@ export default function ApplicationsPage() {
                       </div>
                     )}
 
-                    {(app.status === 'approved' || app.status === 'rejected') && app.reviewed_at && (
+                    {(app.member_status === 'active' || app.member_status === 'rejected') && app.approved_at && (
                       <div style={{
                         backgroundColor: '#0a0a0a',
                         borderRadius: '8px',
@@ -359,7 +524,7 @@ export default function ApplicationsPage() {
                         gap: '8px'
                       }}>
                         <span style={{ color: '#666666', fontSize: '13px' }}>
-                          {app.status === 'approved' ? '✓' : '✕'} Revisado el {new Date(app.reviewed_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {app.member_status === 'active' ? '✓' : '✕'} Revisado el {new Date(app.approved_at).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </span>
                       </div>
                     )}
