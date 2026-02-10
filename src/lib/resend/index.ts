@@ -1,10 +1,18 @@
 import { Resend } from 'resend';
 
-if (!process.env.RESEND_API_KEY) {
-  console.warn('Warning: RESEND_API_KEY is not set');
-}
+// Lazy initialization to avoid build-time errors
+let resendInstance: Resend | null = null;
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+export const getResend = (): Resend => {
+  if (!resendInstance) {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn('Warning: RESEND_API_KEY is not set');
+      throw new Error('RESEND_API_KEY is required');
+    }
+    resendInstance = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendInstance;
+};
 
 // Email templates
 export const templates = {

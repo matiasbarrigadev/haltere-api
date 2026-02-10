@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
-import { resend, templates } from '@/lib/resend';
+import { getResend, templates } from '@/lib/resend';
 
 // GET - Listar todas las solicitudes
 export async function GET(request: Request) {
@@ -126,7 +126,7 @@ export async function PUT(request: Request) {
             activationLink: resetData.properties.action_link
           });
 
-          const { error: emailError } = await resend.emails.send({
+          const { error: emailError } = await getResend().emails.send({
             from: process.env.RESEND_FROM_EMAIL || 'Club Haltère <onboarding@resend.dev>',
             to: userData.email,
             subject: emailTemplate.subject,
