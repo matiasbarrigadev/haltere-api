@@ -427,6 +427,32 @@ export default function TechnogymAdminPage() {
                   <code style={{ color: '#d4af37', fontSize: '10px' }}>{createResult.permanentToken}</code>
                 </div>
               </div>
+              
+              {/* Pending link notice */}
+              {!selectedMemberId && (
+                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: 'rgba(212,175,55,0.1)', borderRadius: '8px', border: '1px solid rgba(212,175,55,0.3)' }}>
+                  <div style={{ color: '#d4af37', fontSize: '13px', fontWeight: 500 }}>
+                    ⏳ Vinculación Pendiente
+                  </div>
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                    Este contacto se guardó con vinculación pendiente. Cuando el usuario se registre en Haltere 
+                    con el email <strong style={{ color: '#fff' }}>{createForm.email}</strong>, 
+                    se vinculará automáticamente con su cuenta de Technogym.
+                  </div>
+                </div>
+              )}
+              
+              {selectedMemberId && (
+                <div style={{ marginTop: '12px', padding: '12px', backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: '8px', border: '1px solid rgba(34,197,94,0.3)' }}>
+                  <div style={{ color: '#22c55e', fontSize: '13px', fontWeight: 500 }}>
+                    🔗 Vinculado a Haltere
+                  </div>
+                  <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
+                    El campo <code style={{ color: '#00b4d8' }}>technogym_user_id</code> fue actualizado automáticamente 
+                    en el perfil del miembro.
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

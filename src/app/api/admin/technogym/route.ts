@@ -58,6 +58,69 @@ async function linkTechnogymToSupabase(supabaseUserId: string, technogymUserId: 
   }
 }
 
+// Save pending link for users created in Technogym without a Haltere account
+async function savePendingLink(params: {
+  email: string;
+  technogymUserId: string;
+  technogymFacilityUserId?: string;
+  technogymPermanentToken?: string;
+  firstName?: string;
+  lastName?: string;
+  createdBy?: string;
+}) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    console.log('[Technogym] Supabase admin not configured, skipping pending link');
+    return false;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('technogym_pending_links')
+      .upsert({
+        email: params.email.toLowerCase(),
+        technogym_user_id: params.technogymUserId,
+        technogym_facility_user_id: params.technogymFacilityUserId,
+        technogym_permanent_token: params.technogymPermanentToken,
+        first_name: params.firstName,
+        last_name: params.lastName,
+        created_by: params.createdBy,
+        status: 'pending',
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'email,technogym_user_id'
+      });
+      
+    if (error) {
+      console.error('[Technogym] Failed to save pending link:', error);
+      return false;
+    }
+    
+    console.log('[Technogym] Saved pending link for:', params.email);
+    return true;
+  } catch (err) {
+    console.error('[Technogym] Error saving pending link:', err);
+    return false;
+  }
+}
+
+// Get admin user ID from Authorization header
+async function getAdminUserId(request: NextRequest): Promise<string | null> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return null;
+  
+  const token = authHeader.substring(7);
+  try {
+    const { data: { user } } = await supabase.auth.getUser(token);
+    return user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/admin/technogym
  * 
@@ -210,14 +273,30 @@ export async function POST(request: NextRequest) {
           externalId
         });
         
-        // If externalId is a valid UUID (Supabase user ID), link the accounts
+        // If externalId is a valid UUID (Supabase user ID), link the accounts directly
         if (result.success && externalId && isValidUUID(externalId)) {
           await linkTechnogymToSupabase(externalId, result.userId);
+        } 
+        // If NO externalId, save as pending for future linking when user registers
+        else if (result.success && !externalId) {
+          const adminId = await getAdminUserId(request);
+          await savePendingLink({
+            email,
+            technogymUserId: result.userId,
+            technogymFacilityUserId: result.facilityUserId,
+            technogymPermanentToken: result.permanentToken,
+            firstName,
+            lastName,
+            createdBy: adminId || undefined
+          });
         }
         
         return NextResponse.json({
           success: true,
-          data: result
+          data: {
+            ...result,
+            pendingLink: !externalId // Indicate this contact needs future linking
+          }
         });
       }
       
@@ -366,11 +445,27 @@ export async function POST(request: NextRequest) {
           if (result.success && externalId && isValidUUID(externalId)) {
             await linkTechnogymToSupabase(externalId, result.userId);
           }
+          // If NO externalId, save as pending for future linking
+          else if (result.success && !externalId) {
+            const adminId = await getAdminUserId(request);
+            await savePendingLink({
+              email,
+              technogymUserId: result.userId,
+              technogymFacilityUserId: result.facilityUserId,
+              technogymPermanentToken: result.permanentToken,
+              firstName,
+              lastName,
+              createdBy: adminId || undefined
+            });
+          }
           
           return NextResponse.json({
             success: true,
             action: 'onboard_member',
-            data: result
+            data: {
+              ...result,
+              pendingLink: !externalId
+            }
           });
         } else {
           // Just create contact without membership
@@ -387,11 +482,27 @@ export async function POST(request: NextRequest) {
           if (result.success && externalId && isValidUUID(externalId)) {
             await linkTechnogymToSupabase(externalId, result.userId);
           }
+          // If NO externalId, save as pending for future linking
+          else if (result.success && !externalId) {
+            const adminId = await getAdminUserId(request);
+            await savePendingLink({
+              email,
+              technogymUserId: result.userId,
+              technogymFacilityUserId: result.facilityUserId,
+              technogymPermanentToken: result.permanentToken,
+              firstName,
+              lastName,
+              createdBy: adminId || undefined
+            });
+          }
           
           return NextResponse.json({
             success: true,
             action: 'create_contact',
-            data: result
+            data: {
+              ...result,
+              pendingLink: !externalId
+            }
           });
         }
       }
