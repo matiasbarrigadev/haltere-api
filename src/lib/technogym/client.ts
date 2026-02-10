@@ -139,9 +139,26 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     return { token: sessionToken, facilityId };
   }
 
+  // Validate configuration before attempting auth
+  if (!isConfigured()) {
+    const missing = [];
+    if (!API_KEY) missing.push('TECHNOGYM_API_KEY');
+    if (!USERNAME) missing.push('TECHNOGYM_USERNAME');
+    if (!PASSWORD) missing.push('TECHNOGYM_PASSWORD');
+    if (!FACILITY_URL) missing.push('TECHNOGYM_FACILITY_URL');
+    throw new Error(`Technogym configuration incomplete. Missing: ${missing.join(', ')}`);
+  }
+
   const url = `${API_BASE_URL}/${FACILITY_URL}/application/${APPLICATION_ID}/AccessIntegration`;
   
-  console.log('[Technogym] Authenticating...', { url, env: process.env.TECHNOGYM_ENV });
+  console.log('[Technogym] Authenticating...', { 
+    url, 
+    env: process.env.TECHNOGYM_ENV || 'development',
+    facilityUrl: FACILITY_URL,
+    hasApiKey: !!API_KEY,
+    hasUsername: !!USERNAME,
+    hasPassword: !!PASSWORD,
+  });
   
   const response = await fetch(url, {
     method: 'POST',
@@ -157,20 +174,32 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     }),
   });
 
-  if (!response.ok) {
-    const error = await response.text();
-    console.error('[Technogym] Auth failed:', error);
-    throw new Error(`Technogym authentication failed: ${response.status} ${error}`);
+  const responseText = await response.text();
+  let data: TechnogymAuthResponse;
+  
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    console.error('[Technogym] Invalid JSON response:', responseText.substring(0, 500));
+    throw new Error(`Technogym authentication failed: Invalid response - ${responseText.substring(0, 200)}`);
   }
 
-  const data: TechnogymAuthResponse = await response.json();
+  if (!response.ok) {
+    console.error('[Technogym] Auth failed:', { status: response.status, data });
+    const errorMsg = data && typeof data === 'object' && 'message' in data 
+      ? (data as { message: string }).message 
+      : responseText.substring(0, 200);
+    throw new Error(`Technogym authentication failed: ${response.status} - ${errorMsg}`);
+  }
   
   if (!data.token) {
-    throw new Error('Technogym authentication failed: No token in response');
+    console.error('[Technogym] No token in response:', data);
+    throw new Error(`Technogym authentication failed: No token in response. Result: ${data.data?.result || 'unknown'}`);
   }
   
   if (!data.data?.facilities?.[0]?.id) {
-    throw new Error('Technogym authentication failed: No facility found');
+    console.error('[Technogym] No facility found:', data);
+    throw new Error('Technogym authentication failed: No facility found in response');
   }
 
   sessionToken = data.token;
@@ -334,6 +363,37 @@ export async function getUserByExternalId(externalId: string): Promise<Technogym
     };
   } catch (error) {
     console.log('[Technogym] User not found by externalId:', externalId);
+    return null;
+  }
+}
+
+/**
+ * Get user by Technogym userId (Mywellness Cloud user ID)
+ * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserFromUserId
+ * 
+ * @param userId - The Mywellness Cloud userId (not facilityUserId)
+ */
+export async function getUserByUserId(userId: string): Promise<TechnogymUser | null> {
+  try {
+    const response = await apiRequest<GetUserResponse>(
+      '/core/facility/{facilityId}/GetFacilityUserFromUserId',
+      { userId }
+    );
+
+    return {
+      userId: response.data.userId,
+      facilityUserId: response.data.facilityUserId,
+      firstName: response.data.firstName,
+      lastName: response.data.lastName,
+      email: response.data.email,
+      birthDate: response.data.birthDate,
+      gender: response.data.gender,
+      externalId: response.data.externalId,
+      notes: response.data.notes,
+      createdOn: response.data.createdOn,
+    };
+  } catch (error) {
+    console.log('[Technogym] User not found by userId:', userId);
     return null;
   }
 }

@@ -78,7 +78,7 @@ export default function TechnogymAdminPage() {
   const [isCreating, setIsCreating] = useState(false);
   
   const [lookupId, setLookupId] = useState('');
-  const [lookupType, setLookupType] = useState<'externalId' | 'permanentToken'>('externalId');
+  const [lookupType, setLookupType] = useState<'externalId' | 'permanentToken' | 'userId'>('externalId');
   const [lookupResult, setLookupResult] = useState<TechnogymUser | null>(null);
   const [isLooking, setIsLooking] = useState(false);
 
@@ -352,8 +352,9 @@ export default function TechnogymAdminPage() {
         <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
           <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>Buscar Usuario</h2>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <select value={lookupType} onChange={e => setLookupType(e.target.value as typeof lookupType)} style={{ ...inputStyle, maxWidth: '180px' }}>
-              <option value="externalId">External ID</option>
+            <select value={lookupType} onChange={e => setLookupType(e.target.value as typeof lookupType)} style={{ ...inputStyle, maxWidth: '200px' }}>
+              <option value="externalId">External ID (Haltere)</option>
+              <option value="userId">User ID (Technogym)</option>
               <option value="permanentToken">Permanent Token</option>
             </select>
             <input type="text" value={lookupId} onChange={e => setLookupId(e.target.value)} placeholder="Buscar..." style={{ ...inputStyle, flex: 1, minWidth: '200px' }} />

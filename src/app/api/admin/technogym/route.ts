@@ -4,6 +4,7 @@ import {
   createUser,
   getUserByPermanentToken,
   getUserByExternalId,
+  getUserByUserId,
   updateUser,
   saveMembership,
   registerVisit,
@@ -23,6 +24,7 @@ import {
  * - action=test: Test authentication
  * - permanentToken: Get user by permanent token
  * - externalId: Get user by external ID (Haltere user ID)
+ * - userId: Get user by Technogym userId (Mywellness Cloud ID)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -30,6 +32,7 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action');
     const permanentToken = searchParams.get('permanentToken');
     const externalId = searchParams.get('externalId');
+    const userId = searchParams.get('userId');
     
     // Check configuration status
     if (action === 'status') {
@@ -77,7 +80,22 @@ export async function GET(request: NextRequest) {
       if (!user) {
         return NextResponse.json({
           success: false,
-          error: 'User not found'
+          error: 'User not found by externalId'
+        }, { status: 404 });
+      }
+      return NextResponse.json({
+        success: true,
+        data: user
+      });
+    }
+    
+    // Get user by Technogym userId (Mywellness Cloud ID)
+    if (userId) {
+      const user = await getUserByUserId(userId);
+      if (!user) {
+        return NextResponse.json({
+          success: false,
+          error: 'User not found by userId'
         }, { status: 404 });
       }
       return NextResponse.json({
@@ -92,7 +110,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: {
         facilityId,
-        message: 'Use POST to create/update users or GET with permanentToken/externalId to lookup users'
+        message: 'Use POST to create/update users or GET with permanentToken/externalId/userId to lookup users'
       }
     });
     
