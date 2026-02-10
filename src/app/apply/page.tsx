@@ -80,10 +80,25 @@ export default function ApplyPage() {
     setError('');
 
     try {
+      // Transform camelCase to snake_case for API
+      const apiPayload = {
+        full_name: formData.fullName,
+        email: formData.email,
+        phone: formData.phone,
+        occupation: formData.occupation || 'No especificada',
+        linkedin_url: formData.linkedin,
+        referral_source: formData.referralSource,
+        referral_name: formData.referredBy,
+        fitness_goals: formData.goals,
+        preferred_location: formData.preferredLocation,
+        schedule_preference: formData.preferredSchedule,
+        additional_notes: formData.additionalComments
+      };
+
       const response = await fetch('/api/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(apiPayload)
       });
 
       const data = await response.json();
@@ -420,7 +435,7 @@ export default function ApplyPage() {
                     color: 'var(--color-gold)',
                     marginBottom: '0.5rem'
                   }}>
-                    $2.400.000 CLP
+                    $1,000 USD
                   </p>
                   <p style={{ fontSize: '0.8rem', color: 'var(--color-gray)' }}>
                     Incluye acceso 24/7 a todas las sedes. Bonos se adquieren por separado.
