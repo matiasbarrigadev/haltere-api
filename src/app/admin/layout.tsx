@@ -57,7 +57,9 @@ export default function AdminLayout({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
   const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
   // Inicializar Supabase client en el cliente (no durante SSR/build)
@@ -68,11 +70,14 @@ export default function AdminLayout({
     }
   }, []);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
         setIsRoleDropdownOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -296,7 +301,7 @@ export default function AdminLayout({
         </button>
 
         {/* Navigation */}
-        <nav style={{ flex: 1, padding: '16px 12px', overflowY: 'auto' }}>
+        <nav className="admin-sidebar-nav" style={{ flex: 1, padding: '16px 12px', overflowY: 'auto' }}>
           {!isSidebarCollapsed && (
             <div style={{
               color: '#555555',
@@ -490,106 +495,149 @@ export default function AdminLayout({
           )}
         </nav>
 
-        {/* User Section */}
-        <div style={{
-          padding: '16px 12px',
-          borderTop: '1px solid #1a1a1a',
-        }}>
-          {!isSidebarCollapsed && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '12px',
-              backgroundColor: '#111111',
-              borderRadius: '12px',
-              marginBottom: '12px',
-              border: '1px solid #1a1a1a'
-            }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(212, 175, 55, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#d4af37',
-                fontWeight: 600,
-                fontSize: '14px'
-              }}>
-                {userInitials}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ 
-                  color: '#ffffff', 
-                  fontSize: '13px', 
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
-                  {user.full_name}
-                </div>
-                <div style={{ 
-                  color: '#d4af37', 
-                  fontSize: '11px',
-                  textTransform: 'capitalize'
-                }}>
-                  {user.role}
-                </div>
-              </div>
-            </div>
-          )}
+        {/* User Section - Single Button with Dropdown */}
+        <div 
+          ref={userDropdownRef}
+          style={{
+            padding: '12px',
+            borderTop: '1px solid #1a1a1a',
+            position: 'relative',
+          }}
+        >
           <button
-            onClick={handleLogout}
+            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: isSidebarCollapsed ? '0' : '12px',
               justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-              padding: isSidebarCollapsed ? '14px' : '14px 16px',
+              padding: isSidebarCollapsed ? '12px' : '12px 14px',
               borderRadius: '12px',
-              backgroundColor: 'transparent',
-              border: '1px solid transparent',
-              color: '#888888',
+              backgroundColor: isUserDropdownOpen ? '#1a1a1a' : '#111111',
+              border: '1px solid #1a1a1a',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
-              fontSize: '14px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-              e.currentTarget.style.color = '#ef4444';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.borderColor = 'transparent';
-              e.currentTarget.style.color = '#888888';
             }}
           >
-            <span style={{ fontSize: '18px' }}>🚪</span>
-            {!isSidebarCollapsed && <span>Cerrar sesión</span>}
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(212, 175, 55, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#d4af37',
+              fontWeight: 600,
+              fontSize: '14px',
+              flexShrink: 0,
+            }}>
+              {userInitials}
+            </div>
+            {!isSidebarCollapsed && (
+              <>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                  <div style={{ 
+                    color: '#ffffff', 
+                    fontSize: '13px', 
+                    fontWeight: 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {user.full_name}
+                  </div>
+                  <div style={{ 
+                    color: '#d4af37', 
+                    fontSize: '11px',
+                    textTransform: 'capitalize'
+                  }}>
+                    {user.role}
+                  </div>
+                </div>
+                <span style={{ 
+                  color: '#555',
+                  fontSize: '10px',
+                  transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease'
+                }}>
+                  ▲
+                </span>
+              </>
+            )}
           </button>
-        </div>
 
-        {/* Version */}
-        {!isSidebarCollapsed && (
-          <div style={{
-            padding: '12px 16px',
-            borderTop: '1px solid #1a1a1a',
-            textAlign: 'center'
-          }}>
-            <span style={{ color: '#444444', fontSize: '11px' }}>v1.0.0 • Haltere Club</span>
-          </div>
-        )}
+          {/* User Dropdown Menu */}
+          {isUserDropdownOpen && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '12px',
+              right: '12px',
+              marginBottom: '4px',
+              backgroundColor: '#1a1a1a',
+              borderRadius: '12px',
+              border: '1px solid #2a2a2a',
+              boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.4)',
+              zIndex: 100,
+              overflow: 'hidden',
+            }}>
+              <button
+                onClick={handleLogout}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  fontSize: '13px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>🚪</span>
+                <span>Cerrar sesión</span>
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main content */}
       <main style={{ flex: 1, overflow: 'auto', backgroundColor: '#0a0a0a' }}>
         {children}
       </main>
+
+      {/* Dark scrollbar styles */}
+      <style>{`
+        .admin-sidebar-nav::-webkit-scrollbar {
+          width: 4px;
+        }
+        .admin-sidebar-nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .admin-sidebar-nav::-webkit-scrollbar-thumb {
+          background: #2a2a2a;
+          border-radius: 4px;
+        }
+        .admin-sidebar-nav::-webkit-scrollbar-thumb:hover {
+          background: #3a3a3a;
+        }
+        .admin-sidebar-nav {
+          scrollbar-width: thin;
+          scrollbar-color: #2a2a2a transparent;
+        }
+      `}</style>
     </div>
   );
 }
