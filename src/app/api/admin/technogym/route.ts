@@ -14,6 +14,12 @@ import {
   isConfigured,
   getConfigStatus,
   authenticate,
+  getUserHealthProfile,
+  getExtendedUserProfile,
+  getUserAspirations,
+  getUserTrainingProgram,
+  getLastBiometricsMeasurements,
+  searchUsersByEmail,
   type MembershipOperation
 } from '@/lib/technogym/client';
 
@@ -206,6 +212,154 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         success: true,
         data: user
+      });
+    }
+    
+    // Get user health profile (basic - just biometrics)
+    if (action === 'health') {
+      const healthUserId = searchParams.get('healthUserId');
+      if (!healthUserId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing healthUserId parameter'
+        }, { status: 400 });
+      }
+      
+      const profile = await getUserHealthProfile(healthUserId);
+      if (!profile) {
+        return NextResponse.json({
+          success: false,
+          error: 'User health profile not found'
+        }, { status: 404 });
+      }
+      
+      return NextResponse.json({
+        success: true,
+        data: profile
+      });
+    }
+    
+    // Get extended user profile (biometrics + aspirations + training program)
+    if (action === 'profile') {
+      const profileUserId = searchParams.get('profileUserId');
+      if (!profileUserId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing profileUserId parameter'
+        }, { status: 400 });
+      }
+      
+      const profile = await getExtendedUserProfile(profileUserId);
+      if (!profile) {
+        return NextResponse.json({
+          success: false,
+          error: 'User extended profile not found'
+        }, { status: 404 });
+      }
+      
+      return NextResponse.json({
+        success: true,
+        data: profile
+      });
+    }
+    
+    // Get user aspirations (fitness goals)
+    if (action === 'aspirations') {
+      const aspirationsUserId = searchParams.get('aspirationsUserId');
+      if (!aspirationsUserId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing aspirationsUserId parameter'
+        }, { status: 400 });
+      }
+      
+      const aspirations = await getUserAspirations(aspirationsUserId);
+      return NextResponse.json({
+        success: true,
+        data: { aspirations }
+      });
+    }
+    
+    // Get user training program
+    if (action === 'training') {
+      const trainingUserId = searchParams.get('trainingUserId');
+      if (!trainingUserId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing trainingUserId parameter'
+        }, { status: 400 });
+      }
+      
+      const trainingProgram = await getUserTrainingProgram(trainingUserId);
+      return NextResponse.json({
+        success: true,
+        data: { trainingProgram }
+      });
+    }
+    
+    // Get user biometrics
+    if (action === 'biometrics') {
+      const biometricsUserId = searchParams.get('biometricsUserId');
+      if (!biometricsUserId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing biometricsUserId parameter'
+        }, { status: 400 });
+      }
+      
+      const measurements = await getLastBiometricsMeasurements(biometricsUserId);
+      return NextResponse.json({
+        success: true,
+        data: { measurements }
+      });
+    }
+    
+    // Search users by email in Technogym
+    if (action === 'search') {
+      const email = searchParams.get('email');
+      if (!email) {
+        return NextResponse.json({
+          success: false,
+          error: 'Missing email parameter for search'
+        }, { status: 400 });
+      }
+      
+      const users = await searchUsersByEmail(email);
+      return NextResponse.json({
+        success: true,
+        data: { users }
+      });
+    }
+    
+    // Get connected users (Haltere users with technogym_user_id)
+    if (action === 'connected') {
+      const supabase = getSupabaseAdmin();
+      if (!supabase) {
+        return NextResponse.json({
+          success: false,
+          error: 'Supabase not configured'
+        }, { status: 500 });
+      }
+      
+      const { data: connectedUsers, error } = await supabase
+        .from('user_profiles')
+        .select('id, email, full_name, role, technogym_user_id, created_at')
+        .not('technogym_user_id', 'is', null)
+        .order('full_name');
+      
+      if (error) {
+        return NextResponse.json({
+          success: false,
+          error: 'Failed to fetch connected users'
+        }, { status: 500 });
+      }
+      
+      return NextResponse.json({
+        success: true,
+        data: { 
+          users: connectedUsers || [],
+          count: connectedUsers?.length || 0
+        }
       });
     }
     

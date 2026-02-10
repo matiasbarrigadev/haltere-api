@@ -20,6 +20,63 @@ interface TechnogymUser {
   firstName: string;
   lastName: string;
   email: string;
+  birthDate?: string;
+  gender?: string;
+  externalId?: string;
+}
+
+interface UserAspiration {
+  id: string;
+  name: string;
+  selected: boolean;
+  order?: number;
+}
+
+interface TrainingExercise {
+  id: string;
+  name: string;
+  sets?: number;
+  reps?: number;
+  duration?: number;
+  weight?: number;
+  order: number;
+}
+
+interface TrainingProgram {
+  id: string;
+  name: string;
+  description?: string;
+  exercises?: TrainingExercise[];
+  createdOn?: string;
+  modifiedOn?: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+}
+
+interface HealthProfile {
+  user: TechnogymUser;
+  biometrics?: {
+    weight?: number;
+    height?: number;
+    bmi?: number;
+    bodyFat?: number;
+    muscleMass?: number;
+    visceralFat?: number;
+    metabolicAge?: number;
+    measureDate?: string;
+  };
+  aspirations?: UserAspiration[];
+  trainingProgram?: TrainingProgram;
+}
+
+interface ConnectedUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  technogym_user_id: string;
+  created_at: string;
 }
 
 interface CreateUserResult {
@@ -67,7 +124,14 @@ export default function TechnogymAdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'create' | 'lookup' | 'import' | 'sync'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'lookup' | 'connected' | 'import' | 'sync'>('create');
+  
+  // Health profile modal
+  const [healthModal, setHealthModal] = useState<{ open: boolean; userId: string | null; data: HealthProfile | null; loading: boolean }>({ open: false, userId: null, data: null, loading: false });
+  
+  // Connected users list
+  const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
+  const [loadingConnected, setLoadingConnected] = useState(false);
   
   const [createForm, setCreateForm] = useState({
     firstName: '', lastName: '', email: '', dateOfBirth: '', gender: '' as '' | 'M' | 'F', externalId: '',
@@ -150,6 +214,43 @@ export default function TechnogymAdminPage() {
       setLoadingMembers(false);
     }
   }, []);
+
+  // Load connected users (with technogym_user_id)
+  const loadConnectedUsers = useCallback(async () => {
+    setLoadingConnected(true);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/admin/technogym?action=connected', { headers });
+      const result = await response.json();
+      if (result.success) {
+        setConnectedUsers(result.data.users || []);
+      }
+    } catch (err) {
+      console.error('Error loading connected users:', err);
+    } finally {
+      setLoadingConnected(false);
+    }
+  }, [getAuthHeaders]);
+
+  // Fetch extended profile for modal (biometrics + aspirations + training)
+  const fetchHealthProfile = useCallback(async (userId: string) => {
+    setHealthModal(prev => ({ ...prev, open: true, userId, loading: true, data: null }));
+    try {
+      const headers = await getAuthHeaders();
+      // Use new extended profile endpoint
+      const response = await fetch(`/api/admin/technogym?action=profile&profileUserId=${userId}`, { headers });
+      const result = await response.json();
+      if (result.success) {
+        setHealthModal(prev => ({ ...prev, data: result.data, loading: false }));
+      } else {
+        setHealthModal(prev => ({ ...prev, loading: false }));
+        setError('No se pudo cargar perfil extendido');
+      }
+    } catch (err) {
+      setHealthModal(prev => ({ ...prev, loading: false }));
+      setError(err instanceof Error ? err.message : 'Error');
+    }
+  }, [getAuthHeaders]);
 
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
   useEffect(() => { loadHaltereMembers(); }, [loadHaltereMembers]);
@@ -311,14 +412,17 @@ export default function TechnogymAdminPage() {
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        {(['create', 'lookup', 'import', 'sync'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} style={{
-            padding: '10px 20px', backgroundColor: activeTab === tab ? '#00b4d8' : '#1a1a1a',
-            border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', cursor: 'pointer'
-          }}>
-            {tab === 'create' ? '👤 Crear' : tab === 'lookup' ? '🔍 Buscar' : tab === 'import' ? '📥 Importar CSV' : '🔄 Webhooks'}
-          </button>
-        ))}
+      {(['create', 'lookup', 'connected', 'import', 'sync'] as const).map(tab => (
+        <button key={tab} onClick={() => { 
+          setActiveTab(tab); 
+          if (tab === 'connected') loadConnectedUsers(); 
+        }} style={{
+          padding: '10px 20px', backgroundColor: activeTab === tab ? '#00b4d8' : '#1a1a1a',
+          border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', cursor: 'pointer'
+        }}>
+          {tab === 'create' ? '👤 Crear' : tab === 'lookup' ? '🔍 Buscar' : tab === 'connected' ? '🔗 Conectados' : tab === 'import' ? '📥 Importar CSV' : '🔄 Webhooks'}
+        </button>
+      ))}
       </div>
 
       {activeTab === 'create' && (
@@ -460,7 +564,7 @@ export default function TechnogymAdminPage() {
 
       {activeTab === 'lookup' && (
         <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
-          <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>Buscar Usuario</h2>
+          <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>Buscar Usuario en Mywellness</h2>
           <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <select value={lookupType} onChange={e => setLookupType(e.target.value as typeof lookupType)} style={{ ...inputStyle, maxWidth: '200px' }}>
               <option value="externalId">External ID (Haltere)</option>
@@ -472,11 +576,249 @@ export default function TechnogymAdminPage() {
               {isLooking ? '...' : 'Buscar'}
             </button>
           </div>
-          {lookupResult && <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px' }}>
-            <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{lookupResult.firstName} {lookupResult.lastName}</div>
-            <div style={{ color: '#888' }}>{lookupResult.email}</div>
-            <div style={{ marginTop: '8px', fontSize: '12px' }}><code style={{ color: '#00b4d8' }}>{lookupResult.userId}</code></div>
-          </div>}
+          {lookupResult && (
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                <div>
+                  <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{lookupResult.firstName} {lookupResult.lastName}</div>
+                  <div style={{ color: '#888' }}>{lookupResult.email}</div>
+                  <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                    <span style={{ color: '#666' }}>User ID:</span> <code style={{ color: '#00b4d8' }}>{lookupResult.userId}</code>
+                  </div>
+                  {lookupResult.externalId && (
+                    <div style={{ fontSize: '12px' }}>
+                      <span style={{ color: '#666' }}>External ID:</span> <code style={{ color: '#22c55e' }}>{lookupResult.externalId}</code>
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => fetchHealthProfile(lookupResult.userId)}
+                  style={{ padding: '10px 16px', backgroundColor: '#00b4d8', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  📊 Ver Datos de Salud
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'connected' && (
+        <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>🔗 Usuarios Conectados</h2>
+          <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>
+            Miembros de Haltere vinculados con cuenta de Technogym Mywellness.
+          </p>
+          
+          {loadingConnected ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Cargando...</div>
+          ) : connectedUsers.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+              No hay usuarios conectados aún.<br />
+              Usa la pestaña &quot;Crear&quot; para vincular miembros.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ marginBottom: '12px', color: '#22c55e', fontSize: '14px' }}>
+                ✓ {connectedUsers.length} usuario{connectedUsers.length !== 1 ? 's' : ''} conectado{connectedUsers.length !== 1 ? 's' : ''}
+              </div>
+              {connectedUsers.map(user => (
+                <div 
+                  key={user.id} 
+                  style={{ 
+                    padding: '16px', 
+                    backgroundColor: '#0d0d0d', 
+                    borderRadius: '10px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#fff' }}>{user.full_name}</div>
+                    <div style={{ color: '#888', fontSize: '13px' }}>{user.email}</div>
+                    <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                      <span style={{ color: '#666' }}>Technogym ID:</span>{' '}
+                      <code style={{ color: '#00b4d8' }}>{user.technogym_user_id}</code>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => fetchHealthProfile(user.technogym_user_id)}
+                    style={{ padding: '10px 16px', backgroundColor: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#fff', fontSize: '12px', cursor: 'pointer' }}
+                  >
+                    📊 Salud
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Health Profile Modal */}
+      {healthModal.open && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', maxWidth: '600px', width: '90%', maxHeight: '80vh', overflow: 'auto', border: '1px solid #2a2a2a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#fff' }}>📊 Datos de Salud</h2>
+              <button onClick={() => setHealthModal({ open: false, userId: null, data: null, loading: false })} style={{ background: 'none', border: 'none', color: '#888', fontSize: '24px', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            {healthModal.loading ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>Cargando datos de salud...</div>
+            ) : healthModal.data ? (
+              <div>
+                {/* User Info */}
+                <div style={{ padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px', marginBottom: '16px' }}>
+                  <div style={{ fontWeight: 600, color: '#fff', fontSize: '16px' }}>
+                    {healthModal.data.user.firstName} {healthModal.data.user.lastName}
+                  </div>
+                  <div style={{ color: '#888', fontSize: '13px' }}>{healthModal.data.user.email}</div>
+                </div>
+                
+                {/* Biometrics (Body Composition) */}
+                {healthModal.data.biometrics && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <h3 style={{ color: '#00b4d8', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>🏋️ Composición Corporal</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px' }}>
+                      {healthModal.data.biometrics.weight && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>{healthModal.data.biometrics.weight} kg</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Peso</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.height && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>{healthModal.data.biometrics.height} cm</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Altura</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.bmi && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#fff' }}>{healthModal.data.biometrics.bmi.toFixed(1)}</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>IMC</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.bodyFat && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#d4af37' }}>{healthModal.data.biometrics.bodyFat}%</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Grasa Corporal</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.muscleMass && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#22c55e' }}>{healthModal.data.biometrics.muscleMass} kg</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Masa Muscular</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.metabolicAge && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#00b4d8' }}>{healthModal.data.biometrics.metabolicAge}</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Edad Metabólica</div>
+                        </div>
+                      )}
+                      {healthModal.data.biometrics.visceralFat && (
+                        <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '20px', fontWeight: 700, color: '#ef4444' }}>{healthModal.data.biometrics.visceralFat}</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>Grasa Visceral</div>
+                        </div>
+                      )}
+                    </div>
+                    {healthModal.data.biometrics.measureDate && (
+                      <div style={{ marginTop: '8px', fontSize: '11px', color: '#666', textAlign: 'right' }}>
+                        Última medición: {new Date(healthModal.data.biometrics.measureDate).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Aspirations (Fitness Goals) */}
+                {healthModal.data.aspirations && healthModal.data.aspirations.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <h3 style={{ color: '#d4af37', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>🎯 Objetivos Fitness (Aspiraciones)</h3>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {healthModal.data.aspirations.map((aspiration, i) => (
+                        <div 
+                          key={i} 
+                          style={{ 
+                            padding: '8px 16px', 
+                            backgroundColor: aspiration.selected ? 'rgba(212,175,55,0.2)' : '#0d0d0d', 
+                            borderRadius: '20px',
+                            border: aspiration.selected ? '1px solid #d4af37' : '1px solid #2a2a2a',
+                            fontSize: '13px',
+                            color: aspiration.selected ? '#d4af37' : '#888'
+                          }}
+                        >
+                          {aspiration.selected ? '✓ ' : ''}{aspiration.name}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Training Program */}
+                {healthModal.data.trainingProgram && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <h3 style={{ color: '#22c55e', fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>💪 Programa de Entrenamiento Activo</h3>
+                    <div style={{ padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px' }}>
+                      <div style={{ fontWeight: 600, color: '#fff', fontSize: '16px', marginBottom: '4px' }}>
+                        {healthModal.data.trainingProgram.name}
+                      </div>
+                      {healthModal.data.trainingProgram.description && (
+                        <div style={{ color: '#888', fontSize: '13px', marginBottom: '12px' }}>
+                          {healthModal.data.trainingProgram.description}
+                        </div>
+                      )}
+                      {healthModal.data.trainingProgram.startDate && healthModal.data.trainingProgram.endDate && (
+                        <div style={{ fontSize: '12px', color: '#666', marginBottom: '12px' }}>
+                          📅 {new Date(healthModal.data.trainingProgram.startDate).toLocaleDateString()} - {new Date(healthModal.data.trainingProgram.endDate).toLocaleDateString()}
+                        </div>
+                      )}
+                      {healthModal.data.trainingProgram.exercises && healthModal.data.trainingProgram.exercises.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#00b4d8', marginBottom: '8px', fontWeight: 500 }}>
+                            {healthModal.data.trainingProgram.exercises.length} ejercicios:
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {healthModal.data.trainingProgram.exercises.slice(0, 5).map((exercise, i) => (
+                              <div key={i} style={{ padding: '8px 12px', backgroundColor: '#111', borderRadius: '6px', fontSize: '12px' }}>
+                                <span style={{ color: '#fff' }}>{exercise.name}</span>
+                                {(exercise.sets || exercise.reps) && (
+                                  <span style={{ color: '#888', marginLeft: '8px' }}>
+                                    {exercise.sets && `${exercise.sets} series`}
+                                    {exercise.sets && exercise.reps && ' x '}
+                                    {exercise.reps && `${exercise.reps} reps`}
+                                  </span>
+                                )}
+                                {exercise.weight && (
+                                  <span style={{ color: '#d4af37', marginLeft: '8px' }}>{exercise.weight} kg</span>
+                                )}
+                              </div>
+                            ))}
+                            {healthModal.data.trainingProgram.exercises.length > 5 && (
+                              <div style={{ color: '#666', fontSize: '11px', textAlign: 'center' }}>
+                                ...y {healthModal.data.trainingProgram.exercises.length - 5} ejercicios más
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {!healthModal.data.biometrics && (!healthModal.data.aspirations || healthModal.data.aspirations.length === 0) && !healthModal.data.trainingProgram && (
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+                    Este usuario no tiene datos de salud registrados en Mywellness aún.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+                No se encontraron datos de salud para este usuario.
+              </div>
+            )}
+          </div>
         </div>
       )}
 

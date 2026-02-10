@@ -429,17 +429,19 @@ export async function getUserByExternalId(externalId: string): Promise<Technogym
 
 /**
  * Get user by Technogym userId (Mywellness Cloud user ID)
- * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserFromUserId
+ * Endpoint: POST /core/user/{userId}/GetUserProfile
+ * NOTE: userId is passed in the URL path, not in the body
  */
 export async function getUserByUserId(userId: string): Promise<TechnogymUser | null> {
   try {
+    // Try primary endpoint: GetUserProfile with userId in URL
     const response = await apiRequest<GetUserResponse>(
-      '/core/facility/{facilityId}/GetFacilityUserFromUserId',
-      { userId }
+      `/core/user/${userId}/GetUserProfile`,
+      {}
     );
 
     return {
-      userId: response.data.userId,
+      userId: response.data.userId || userId,
       facilityUserId: response.data.facilityUserId,
       firstName: response.data.firstName,
       lastName: response.data.lastName,
@@ -451,8 +453,31 @@ export async function getUserByUserId(userId: string): Promise<TechnogymUser | n
       createdOn: response.data.createdOn,
     };
   } catch (error) {
-    console.log('[Technogym] User not found by userId:', userId);
-    return null;
+    console.log('[Technogym] User not found by userId (primary):', userId, error);
+    
+    // Try fallback: Search by userId in facility
+    try {
+      const fallbackResponse = await apiRequest<GetUserResponse>(
+        '/core/facility/{facilityId}/GetFacilityUser',
+        { userId: userId }
+      );
+      
+      return {
+        userId: fallbackResponse.data.userId || userId,
+        facilityUserId: fallbackResponse.data.facilityUserId,
+        firstName: fallbackResponse.data.firstName,
+        lastName: fallbackResponse.data.lastName,
+        email: fallbackResponse.data.email,
+        birthDate: fallbackResponse.data.birthDate,
+        gender: fallbackResponse.data.gender,
+        externalId: fallbackResponse.data.externalId,
+        notes: fallbackResponse.data.notes,
+        createdOn: fallbackResponse.data.createdOn,
+      };
+    } catch (fallbackError) {
+      console.log('[Technogym] User not found by userId (fallback):', userId, fallbackError);
+      return null;
+    }
   }
 }
 
@@ -726,4 +751,334 @@ export async function syncMemberStatus(
     expiresOn: membershipExpiresOn,
     description: description || `Status changed to ${status}`,
   });
+}
+
+// =============================================================================
+// BIOMETRICS LAYER (S2S API)
+// Documentation: https://apidocs.mywellness.com/#94930931-25b0-48b6-83bd-036e85e637fb
+// =============================================================================
+
+export interface BiometricMeasurement {
+  id: string;
+  name: string;
+  value: number;
+  unit: string;
+  measureDate?: string;
+}
+
+export interface LastBiometricsResponse {
+  data: {
+    lastMeasurements: BiometricMeasurement[];
+  };
+  token?: string;
+}
+
+export interface UserHealthProfile {
+  user: TechnogymUser;
+  biometrics?: {
+    weight?: number;
+    height?: number;
+    bmi?: number;
+    bodyFat?: number;
+    muscleMass?: number;
+    visceralFat?: number;
+    metabolicAge?: number;
+    measureDate?: string;
+  };
+}
+
+/**
+ * Get user's last biometric measurements
+ * Endpoint: POST /biometrics/user/{UserId}/lastbiometricsmeasurements
+ * Documentation: https://apidocs.mywellness.com (BIOMETRICS > How to retrieve the last user measurements)
+ */
+export async function getLastBiometricsMeasurements(userId: string): Promise<BiometricMeasurement[]> {
+  try {
+    const response = await apiRequest<LastBiometricsResponse>(
+      `/biometrics/user/${userId}/lastbiometricsmeasurements`,
+      {}
+    );
+    
+    return response.data?.lastMeasurements || [];
+  } catch (error) {
+    console.log('[Technogym] No biometrics for user:', userId, error);
+    return [];
+  }
+}
+
+/**
+ * Get user weight
+ * Endpoint: POST /biometrics/user/{UserId}/GetWeight
+ */
+export async function getUserWeight(userId: string): Promise<{ value: number; unit: string; date?: string } | null> {
+  try {
+    const response = await apiRequest<{ data: { weight: number; unit: string; measureDate?: string } }>(
+      `/biometrics/user/${userId}/GetWeight`,
+      {}
+    );
+    
+    return {
+      value: response.data.weight,
+      unit: response.data.unit || 'Kg',
+      date: response.data.measureDate,
+    };
+  } catch (error) {
+    console.log('[Technogym] No weight data for user:', userId);
+    return null;
+  }
+}
+
+/**
+ * Get user health profile including biometrics
+ * Combines basic user info with biometric data from Mywellness
+ */
+export async function getUserHealthProfile(userId: string): Promise<UserHealthProfile | null> {
+  try {
+    // Get basic user info first
+    const user = await getUserByUserId(userId);
+    if (!user) {
+      console.log('[Technogym] User not found:', userId);
+      return null;
+    }
+
+    // Get biometric measurements
+    const measurements = await getLastBiometricsMeasurements(userId);
+    
+    // Parse biometrics into structured format
+    const biometrics: UserHealthProfile['biometrics'] = {};
+    
+    for (const m of measurements) {
+      const nameLower = m.name.toLowerCase();
+      if (nameLower.includes('weight') || m.id.includes('weight')) {
+        biometrics.weight = m.value;
+        biometrics.measureDate = m.measureDate;
+      } else if (nameLower.includes('height') || m.id.includes('height')) {
+        biometrics.height = m.value;
+      } else if (nameLower === 'bmi' || m.id.includes('bmi')) {
+        biometrics.bmi = m.value;
+      } else if (nameLower.includes('body fat') || m.id.includes('bodyfat')) {
+        biometrics.bodyFat = m.value;
+      } else if (nameLower.includes('muscle') || m.id.includes('muscle')) {
+        biometrics.muscleMass = m.value;
+      } else if (nameLower.includes('visceral') || m.id.includes('visceral')) {
+        biometrics.visceralFat = m.value;
+      } else if (nameLower.includes('metabolic') || m.id.includes('metabolic')) {
+        biometrics.metabolicAge = m.value;
+      }
+    }
+
+    return {
+      user,
+      biometrics: Object.keys(biometrics).length > 0 ? biometrics : undefined,
+    };
+  } catch (error) {
+    console.error('[Technogym] Error fetching user health profile:', error);
+    return null;
+  }
+}
+
+/**
+ * Search users by email in the facility
+ * Endpoint: POST /core/facility/{facilityId}/SearchUsers
+ */
+export async function searchUsersByEmail(email: string): Promise<TechnogymUser[]> {
+  try {
+    const response = await apiRequest<{ data: { users: Array<{
+      userId: string;
+      facilityUserId: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      birthDate?: string;
+      gender?: string;
+      externalId?: string;
+    }> } }>(
+      '/core/facility/{facilityId}/SearchUsers',
+      { email: email.toLowerCase() }
+    );
+    
+    return (response.data.users || []).map(u => ({
+      userId: u.userId,
+      facilityUserId: u.facilityUserId,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      email: u.email,
+      birthDate: u.birthDate,
+      gender: u.gender,
+      externalId: u.externalId,
+    }));
+  } catch (error) {
+    console.log('[Technogym] Search failed:', error);
+    return [];
+  }
+}
+
+// =============================================================================
+// ASPIRATIONS LAYER (S2S API)
+// Documentation: https://apidocs.mywellness.com (ASPIRATIONS section)
+// =============================================================================
+
+export interface UserAspiration {
+  id: string;
+  name: string;
+  selected: boolean;
+  order?: number;
+}
+
+export interface AspirationMapResponse {
+  data: {
+    aspirations: UserAspiration[];
+  };
+  token?: string;
+}
+
+/**
+ * Get user's aspiration map (fitness goals)
+ * Endpoint: POST /aspirations/user/{UserId}/GetAspirationMap
+ * Returns the user's selected fitness goals/aspirations
+ */
+export async function getUserAspirations(userId: string): Promise<UserAspiration[]> {
+  try {
+    const response = await apiRequest<AspirationMapResponse>(
+      `/aspirations/user/${userId}/GetAspirationMap`,
+      {}
+    );
+    
+    return response.data?.aspirations || [];
+  } catch (error) {
+    console.log('[Technogym] No aspirations for user:', userId, error);
+    return [];
+  }
+}
+
+// =============================================================================
+// TRAINING PROGRAMS LAYER (S2S API)
+// Documentation: https://apidocs.mywellness.com (TRAINING PROGRAMS section)
+// =============================================================================
+
+export interface TrainingExercise {
+  id: string;
+  name: string;
+  sets?: number;
+  reps?: number;
+  duration?: number;
+  weight?: number;
+  order: number;
+}
+
+export interface TrainingProgram {
+  id: string;
+  name: string;
+  description?: string;
+  exercises?: TrainingExercise[];
+  createdOn?: string;
+  modifiedOn?: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+}
+
+export interface TrainingProgramResponse {
+  data: {
+    program?: TrainingProgram;
+    programs?: TrainingProgram[];
+  };
+  token?: string;
+}
+
+/**
+ * Get user's current training program
+ * Endpoint: POST /trainingprograms/user/{UserId}/GetUserTrainingProgram
+ * Returns the user's active training program
+ */
+export async function getUserTrainingProgram(userId: string): Promise<TrainingProgram | null> {
+  try {
+    const response = await apiRequest<TrainingProgramResponse>(
+      `/trainingprograms/user/${userId}/GetUserTrainingProgram`,
+      {}
+    );
+    
+    return response.data?.program || null;
+  } catch (error) {
+    console.log('[Technogym] No training program for user:', userId, error);
+    return null;
+  }
+}
+
+// =============================================================================
+// EXTENDED USER PROFILE (Combining all data)
+// =============================================================================
+
+export interface ExtendedUserProfile {
+  user: TechnogymUser;
+  biometrics?: {
+    weight?: number;
+    height?: number;
+    bmi?: number;
+    bodyFat?: number;
+    muscleMass?: number;
+    visceralFat?: number;
+    metabolicAge?: number;
+    measureDate?: string;
+  };
+  aspirations?: UserAspiration[];
+  trainingProgram?: TrainingProgram;
+}
+
+/**
+ * Get extended user profile with all available data
+ * Combines: user info + biometrics + aspirations + training program
+ */
+export async function getExtendedUserProfile(userId: string): Promise<ExtendedUserProfile | null> {
+  try {
+    // Get basic user info first
+    const user = await getUserByUserId(userId);
+    if (!user) {
+      console.log('[Technogym] User not found:', userId);
+      return null;
+    }
+
+    // Fetch all data in parallel
+    const [measurements, aspirations, trainingProgram] = await Promise.all([
+      getLastBiometricsMeasurements(userId).catch(() => []),
+      getUserAspirations(userId).catch(() => []),
+      getUserTrainingProgram(userId).catch(() => null),
+    ]);
+    
+    // Parse biometrics into structured format
+    const biometrics: ExtendedUserProfile['biometrics'] = {};
+    
+    for (const m of measurements) {
+      const nameLower = m.name.toLowerCase();
+      if (nameLower.includes('weight') || m.id.includes('weight')) {
+        biometrics.weight = m.value;
+        biometrics.measureDate = m.measureDate;
+      } else if (nameLower.includes('height') || m.id.includes('height')) {
+        biometrics.height = m.value;
+      } else if (nameLower === 'bmi' || m.id.includes('bmi')) {
+        biometrics.bmi = m.value;
+      } else if (nameLower.includes('body fat') || m.id.includes('bodyfat')) {
+        biometrics.bodyFat = m.value;
+      } else if (nameLower.includes('muscle') || m.id.includes('muscle')) {
+        biometrics.muscleMass = m.value;
+      } else if (nameLower.includes('visceral') || m.id.includes('visceral')) {
+        biometrics.visceralFat = m.value;
+      } else if (nameLower.includes('metabolic') || m.id.includes('metabolic')) {
+        biometrics.metabolicAge = m.value;
+      }
+    }
+
+    // Filter to only selected aspirations
+    const selectedAspirations = aspirations.filter(a => a.selected);
+
+    return {
+      user,
+      biometrics: Object.keys(biometrics).length > 0 ? biometrics : undefined,
+      aspirations: selectedAspirations.length > 0 ? selectedAspirations : undefined,
+      trainingProgram: trainingProgram || undefined,
+    };
+  } catch (error) {
+    console.error('[Technogym] Error fetching extended user profile:', error);
+    return null;
+  }
 }

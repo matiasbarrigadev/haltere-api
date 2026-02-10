@@ -2,73 +2,185 @@
 
 import { useEffect, useState } from 'react';
 
+interface Zone {
+  id: string;
+  name: string;
+  zone_type: 'private' | 'shared';
+  capacity: number;
+  is_active: boolean;
+}
+
 interface Location {
   id: string;
   name: string;
+  slug: string;
+  description: string | null;
   address: string;
   city: string;
-  status: 'active' | 'maintenance' | 'closed';
-  capacity: number;
-  current_members: number;
+  country: string;
+  phone: string | null;
+  email: string | null;
+  is_24_hours: boolean;
+  opening_time: string | null;
+  closing_time: string | null;
   amenities: string[];
-  hours: string;
-  contact_phone: string;
-  image_url?: string;
+  is_active: boolean;
+  zones: Zone[];
+  created_at: string;
 }
-
-// Mock data para demostración
-const mockLocations: Location[] = [
-  {
-    id: '1',
-    name: 'Haltere Las Condes',
-    address: 'Av. Apoquindo 4500, Piso 12',
-    city: 'Las Condes',
-    status: 'active',
-    capacity: 15,
-    current_members: 12,
-    amenities: ['Gym Premium', 'Spa', 'Sauna', 'Pilates Studio'],
-    hours: '06:00 - 22:00',
-    contact_phone: '+56 2 2345 6789'
-  },
-  {
-    id: '2',
-    name: 'Haltere Vitacura',
-    address: 'Av. Vitacura 2939, Local 101',
-    city: 'Vitacura',
-    status: 'active',
-    capacity: 13,
-    current_members: 10,
-    amenities: ['Gym Premium', 'Yoga Studio', 'Café'],
-    hours: '06:00 - 22:00',
-    contact_phone: '+56 2 2345 6790'
-  },
-  {
-    id: '3',
-    name: 'Haltere Providencia',
-    address: 'Av. Providencia 1208, Piso 5',
-    city: 'Providencia',
-    status: 'maintenance',
-    capacity: 10,
-    current_members: 0,
-    amenities: ['Gym', 'Pilates'],
-    hours: 'Temporalmente cerrado',
-    contact_phone: '+56 2 2345 6791'
-  }
-];
 
 export default function LocationsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Form state
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    address: '',
+    city: '',
+    phone: '',
+    email: '',
+    is_24_hours: true,
+    opening_time: '06:00',
+    closing_time: '22:00',
+    amenities: [] as string[]
+  });
+
+  const amenityOptions = ['Gym Premium', 'Spa', 'Sauna', 'Pilates Studio', 'Yoga Studio', 'Café', 'Estacionamiento', 'Duchas', 'Lockers'];
 
   useEffect(() => {
-    setTimeout(() => {
-      setLocations(mockLocations);
-      setIsLoading(false);
-    }, 500);
+    fetchLocations();
   }, []);
 
-  const getStatusBadge = (status: string) => {
+  const fetchLocations = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/admin/locations?include_inactive=true');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setLocations(data.data || []);
+    } catch (err) {
+      console.error('Error fetching locations:', err);
+      setError(err instanceof Error ? err.message : 'Error al cargar sedes');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openAddModal = () => {
+    setEditingLocation(null);
+    setForm({
+      name: '',
+      description: '',
+      address: '',
+      city: '',
+      phone: '',
+      email: '',
+      is_24_hours: true,
+      opening_time: '06:00',
+      closing_time: '22:00',
+      amenities: []
+    });
+    setError(null);
+    setShowModal(true);
+  };
+
+  const openEditModal = (location: Location) => {
+    setEditingLocation(location);
+    setForm({
+      name: location.name,
+      description: location.description || '',
+      address: location.address,
+      city: location.city,
+      phone: location.phone || '',
+      email: location.email || '',
+      is_24_hours: location.is_24_hours,
+      opening_time: location.opening_time || '06:00',
+      closing_time: location.closing_time || '22:00',
+      amenities: location.amenities || []
+    });
+    setError(null);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.name || !form.address || !form.city) {
+      setError('Nombre, dirección y ciudad son requeridos');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const method = editingLocation ? 'PUT' : 'POST';
+      const body = editingLocation
+        ? { id: editingLocation.id, ...form }
+        : form;
+
+      const res = await fetch('/api/admin/locations', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setShowModal(false);
+      fetchLocations();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Desactivar esta sede?')) return;
+
+    try {
+      const res = await fetch(`/api/admin/locations?id=${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      fetchLocations();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar');
+    }
+  };
+
+  const handleReactivate = async (location: Location) => {
+    try {
+      const res = await fetch('/api/admin/locations', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: location.id, is_active: true })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      fetchLocations();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al reactivar');
+    }
+  };
+
+  const toggleAmenity = (amenity: string) => {
+    setForm(prev => ({
+      ...prev,
+      amenities: prev.amenities.includes(amenity)
+        ? prev.amenities.filter(a => a !== amenity)
+        : [...prev.amenities, amenity]
+    }));
+  };
+
+  const getStatusBadge = (isActive: boolean) => {
     const baseStyle: React.CSSProperties = {
       padding: '6px 12px',
       fontSize: '12px',
@@ -79,23 +191,10 @@ export default function LocationsPage() {
       gap: '6px'
     };
     
-    switch (status) {
-      case 'active':
-        return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>● Activa</span>;
-      case 'maintenance':
-        return <span style={{ ...baseStyle, backgroundColor: 'rgba(234, 179, 8, 0.1)', color: '#eab308' }}>● Mantenimiento</span>;
-      case 'closed':
-        return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>● Cerrada</span>;
-      default:
-        return <span style={{ ...baseStyle, backgroundColor: 'rgba(107, 114, 128, 0.1)', color: '#6b7280' }}>● {status}</span>;
+    if (isActive) {
+      return <span style={{ ...baseStyle, backgroundColor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e' }}>● Activa</span>;
     }
-  };
-
-  const getCapacityColor = (current: number, max: number) => {
-    const percentage = (current / max) * 100;
-    if (percentage >= 90) return '#ef4444';
-    if (percentage >= 70) return '#eab308';
-    return '#22c55e';
+    return <span style={{ ...baseStyle, backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>● Inactiva</span>;
   };
 
   if (isLoading) {
@@ -114,9 +213,8 @@ export default function LocationsPage() {
     );
   }
 
-  const totalCapacity = locations.reduce((acc, loc) => acc + loc.capacity, 0);
-  const totalMembers = locations.reduce((acc, loc) => acc + loc.current_members, 0);
-  const activeLocations = locations.filter(l => l.status === 'active').length;
+  const activeLocations = locations.filter(l => l.is_active);
+  const totalZones = locations.reduce((acc, l) => acc + (l.zones?.length || 0), 0);
 
   return (
     <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
@@ -130,19 +228,22 @@ export default function LocationsPage() {
             Gestiona las ubicaciones del club
           </p>
         </div>
-        <button style={{
-          backgroundColor: '#d4af37',
-          color: '#0a0a0a',
-          fontWeight: 600,
-          borderRadius: '8px',
-          padding: '10px 20px',
-          fontSize: '14px',
-          border: 'none',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
+        <button
+          onClick={openAddModal}
+          style={{
+            backgroundColor: '#d4af37',
+            color: '#0a0a0a',
+            fontWeight: 600,
+            borderRadius: '8px',
+            padding: '10px 20px',
+            fontSize: '14px',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
           <span style={{ fontSize: '16px' }}>+</span>
           Nueva Sede
         </button>
@@ -152,9 +253,9 @@ export default function LocationsPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
         {[
           { label: 'Total Sedes', value: locations.length, icon: '🏢', color: '#ffffff' },
-          { label: 'Activas', value: activeLocations, icon: '✓', color: '#22c55e' },
-          { label: 'Capacidad Total', value: totalCapacity, icon: '👥', color: '#d4af37' },
-          { label: 'Ocupación Actual', value: `${Math.round((totalMembers / totalCapacity) * 100)}%`, icon: '📊', color: '#3b82f6' },
+          { label: 'Activas', value: activeLocations.length, icon: '✓', color: '#22c55e' },
+          { label: 'Total Zonas', value: totalZones, icon: '📍', color: '#d4af37' },
+          { label: 'Inactivas', value: locations.length - activeLocations.length, icon: '⏸', color: '#ef4444' },
         ].map((stat, i) => (
           <div key={i} style={{
             backgroundColor: '#111111',
@@ -181,7 +282,7 @@ export default function LocationsPage() {
               border: '1px solid #222222',
               borderRadius: '16px',
               overflow: 'hidden',
-              transition: 'border-color 0.2s'
+              opacity: location.is_active ? 1 : 0.6
             }}
           >
             {/* Location Header */}
@@ -195,7 +296,7 @@ export default function LocationsPage() {
                   <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#ffffff' }}>{location.name}</h3>
                   <p style={{ margin: 0, marginTop: '4px', fontSize: '14px', color: '#999999' }}>{location.city}</p>
                 </div>
-                {getStatusBadge(location.status)}
+                {getStatusBadge(location.is_active)}
               </div>
               <p style={{ margin: 0, fontSize: '14px', color: '#666666' }}>
                 📍 {location.address}
@@ -204,22 +305,13 @@ export default function LocationsPage() {
 
             {/* Location Body */}
             <div style={{ padding: '24px' }}>
-              {/* Capacity Bar */}
+              {/* Zones count */}
               <div style={{ marginBottom: '20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', color: '#999999' }}>Capacidad</span>
+                  <span style={{ fontSize: '13px', color: '#999999' }}>Zonas</span>
                   <span style={{ fontSize: '13px', color: '#ffffff', fontWeight: 500 }}>
-                    {location.current_members} / {location.capacity} miembros
+                    {location.zones?.length || 0} zonas configuradas
                   </span>
-                </div>
-                <div style={{ height: '8px', backgroundColor: '#1a1a1a', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%',
-                    width: `${(location.current_members / location.capacity) * 100}%`,
-                    backgroundColor: getCapacityColor(location.current_members, location.capacity),
-                    borderRadius: '4px',
-                    transition: 'width 0.5s ease'
-                  }} />
                 </div>
               </div>
 
@@ -227,93 +319,389 @@ export default function LocationsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                 <div>
                   <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '4px' }}>Horario</p>
-                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{location.hours}</p>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>
+                    {location.is_24_hours ? '24 horas' : `${location.opening_time} - ${location.closing_time}`}
+                  </p>
                 </div>
                 <div>
                   <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '4px' }}>Teléfono</p>
-                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{location.contact_phone}</p>
+                  <p style={{ margin: 0, fontSize: '14px', color: '#ffffff' }}>{location.phone || '-'}</p>
                 </div>
               </div>
 
               {/* Amenities */}
-              <div style={{ marginBottom: '20px' }}>
-                <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Amenidades</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {location.amenities.map((amenity, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        padding: '6px 12px',
-                        backgroundColor: '#0a0a0a',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        color: '#999999'
-                      }}
-                    >
-                      {amenity}
-                    </span>
-                  ))}
+              {location.amenities && location.amenities.length > 0 && (
+                <div style={{ marginBottom: '20px' }}>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#666666', marginBottom: '8px' }}>Amenidades</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {location.amenities.slice(0, 4).map((amenity, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          padding: '6px 12px',
+                          backgroundColor: '#0a0a0a',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          color: '#999999'
+                        }}
+                      >
+                        {amenity}
+                      </span>
+                    ))}
+                    {location.amenities.length > 4 && (
+                      <span style={{ padding: '6px 12px', fontSize: '12px', color: '#666666' }}>
+                        +{location.amenities.length - 4} más
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button style={{
-                  flex: 1,
-                  backgroundColor: 'transparent',
-                  border: '1px solid #333333',
-                  borderRadius: '8px',
-                  padding: '10px 16px',
-                  color: '#999999',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}>
-                  Ver Detalles
-                </button>
-                <button style={{
-                  flex: 1,
-                  backgroundColor: 'rgba(212, 175, 55, 0.1)',
-                  border: '1px solid rgba(212, 175, 55, 0.3)',
-                  borderRadius: '8px',
-                  padding: '10px 16px',
-                  color: '#d4af37',
-                  fontSize: '14px',
-                  cursor: 'pointer'
-                }}>
+                <button
+                  onClick={() => openEditModal(location)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                    border: '1px solid rgba(212, 175, 55, 0.3)',
+                    borderRadius: '8px',
+                    padding: '10px 16px',
+                    color: '#d4af37',
+                    fontSize: '14px',
+                    cursor: 'pointer'
+                  }}
+                >
                   Editar
                 </button>
+                {location.is_active ? (
+                  <button
+                    onClick={() => handleDelete(location.id)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: 'transparent',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '8px',
+                      padding: '10px 16px',
+                      color: '#ef4444',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Desactivar
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleReactivate(location)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: 'transparent',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      borderRadius: '8px',
+                      padding: '10px 16px',
+                      color: '#22c55e',
+                      fontSize: '14px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Reactivar
+                  </button>
+                )}
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Map Placeholder */}
-      <div style={{
-        marginTop: '32px',
-        backgroundColor: '#111111',
-        border: '1px solid #222222',
-        borderRadius: '16px',
-        padding: '24px'
-      }}>
-        <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', margin: 0, marginBottom: '20px' }}>
-          Mapa de Ubicaciones
-        </h2>
+      {locations.length === 0 && (
         <div style={{
-          height: '300px',
-          backgroundColor: '#0a0a0a',
-          borderRadius: '12px',
+          backgroundColor: '#111111',
+          border: '1px solid #222222',
+          borderRadius: '16px',
+          padding: '64px 32px',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏢</div>
+          <h3 style={{ fontSize: '20px', color: '#ffffff', margin: 0, marginBottom: '8px' }}>No hay sedes</h3>
+          <p style={{ color: '#666666', margin: 0 }}>Crea tu primera sede para comenzar</p>
+        </div>
+      )}
+
+      {/* Modal */}
+      {showModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          border: '1px dashed #333333'
+          zIndex: 1000,
+          padding: '20px'
         }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗺️</div>
-            <p style={{ color: '#666666', margin: 0 }}>Mapa interactivo próximamente</p>
+          <div style={{
+            backgroundColor: '#111111',
+            borderRadius: '16px',
+            padding: '32px',
+            width: '100%',
+            maxWidth: '600px',
+            maxHeight: '90vh',
+            overflow: 'auto'
+          }}>
+            <h2 style={{ color: '#ffffff', fontSize: '20px', fontWeight: 600, marginBottom: '24px' }}>
+              {editingLocation ? 'Editar Sede' : 'Nueva Sede'}
+            </h2>
+
+            {error && (
+              <div style={{
+                padding: '12px',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                color: '#ef4444',
+                marginBottom: '20px',
+                fontSize: '14px'
+              }}>
+                {error}
+              </div>
+            )}
+
+            {/* Name */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Nombre *</label>
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Haltere Las Condes"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: '#0a0a0a',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+
+            {/* Address */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Dirección *</label>
+              <input
+                type="text"
+                value={form.address}
+                onChange={(e) => setForm({ ...form, address: e.target.value })}
+                placeholder="Av. Apoquindo 4500, Piso 12"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: '#0a0a0a',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+
+            {/* City */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Ciudad *</label>
+              <input
+                type="text"
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                placeholder="Las Condes"
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: '#0a0a0a',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px'
+                }}
+              />
+            </div>
+
+            {/* Description */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Descripción</label>
+              <textarea
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                rows={2}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: '#0a0a0a',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
+            {/* Contact */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+              <div>
+                <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Teléfono</label>
+                <input
+                  type="text"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+56 2 2345 6789"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    backgroundColor: '#0a0a0a',
+                    border: '1px solid #333333',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="lascondes@haltere.cl"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    backgroundColor: '#0a0a0a',
+                    border: '1px solid #333333',
+                    borderRadius: '8px',
+                    color: '#ffffff',
+                    fontSize: '14px'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Hours */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '12px' }}>
+                <input
+                  type="checkbox"
+                  checked={form.is_24_hours}
+                  onChange={(e) => setForm({ ...form, is_24_hours: e.target.checked })}
+                  style={{ width: '18px', height: '18px' }}
+                />
+                <span style={{ color: '#ffffff', fontSize: '14px' }}>Abierto 24 horas</span>
+              </label>
+              {!form.is_24_hours && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Apertura</label>
+                    <input
+                      type="time"
+                      value={form.opening_time}
+                      onChange={(e) => setForm({ ...form, opening_time: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        backgroundColor: '#0a0a0a',
+                        border: '1px solid #333333',
+                        borderRadius: '8px',
+                        color: '#ffffff',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Cierre</label>
+                    <input
+                      type="time"
+                      value={form.closing_time}
+                      onChange={(e) => setForm({ ...form, closing_time: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        backgroundColor: '#0a0a0a',
+                        border: '1px solid #333333',
+                        borderRadius: '8px',
+                        color: '#ffffff',
+                        fontSize: '14px'
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Amenities */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', color: '#888888', fontSize: '13px', marginBottom: '8px' }}>Amenidades</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {amenityOptions.map((amenity) => (
+                  <button
+                    key={amenity}
+                    type="button"
+                    onClick={() => toggleAmenity(amenity)}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      backgroundColor: form.amenities.includes(amenity) ? '#d4af37' : '#222222',
+                      color: form.amenities.includes(amenity) ? '#0a0a0a' : '#888888'
+                    }}
+                  >
+                    {amenity}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowModal(false)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: 'transparent',
+                  border: '1px solid #333333',
+                  borderRadius: '8px',
+                  color: '#999999',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#d4af37',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#0a0a0a',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  opacity: saving ? 0.5 : 1
+                }}
+              >
+                {saving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

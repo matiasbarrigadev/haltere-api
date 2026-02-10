@@ -196,13 +196,18 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET - Get booking data for admin (services, zones, locations, users)
+// GET - Get bookings list or options for admin
 export async function GET(request: NextRequest) {
   const supabase = getSupabase();
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
+    const status = searchParams.get('status');
+    const dateFrom = searchParams.get('date_from');
+    const dateTo = searchParams.get('date_to');
+    const locationId = searchParams.get('location_id');
 
+    // Return options for booking form
     if (type === 'options') {
       const [
         { data: services },
@@ -236,7 +241,47 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ error: 'type parameter required' }, { status: 400 });
+    // List bookings
+    let query = supabase
+      .from('bookings')
+      .select(`
+        *,
+        user:user_profiles!bookings_user_id_fkey(id, full_name, email, phone),
+        service:services!bookings_service_id_fkey(id, name, slug, price_bonos, price_fiat),
+        location:locations!bookings_location_id_fkey(id, name, slug),
+        zone:zones!bookings_zone_id_fkey(id, name, zone_type),
+        professional:professional_profiles!bookings_professional_id_fkey(
+          id,
+          user:user_profiles!professional_profiles_user_id_fkey(id, full_name)
+        )
+      `)
+      .order('start_datetime', { ascending: false });
+
+    // Apply filters
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    if (locationId) {
+      query = query.eq('location_id', locationId);
+    }
+
+    if (dateFrom) {
+      query = query.gte('start_datetime', dateFrom);
+    }
+
+    if (dateTo) {
+      query = query.lte('start_datetime', dateTo);
+    }
+
+    const { data: bookings, error } = await query.limit(100);
+
+    if (error) throw error;
+
+    return NextResponse.json({ 
+      bookings: bookings || [],
+      error: null 
+    });
   } catch (error) {
     console.error('Error in GET admin bookings:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
