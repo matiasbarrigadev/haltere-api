@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { resend, templates } from '@/lib/resend';
 
 // GET - Listar todas las solicitudes
 export async function GET(request: Request) {
@@ -66,6 +67,18 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }, { status: 400 });
     }
 
+    // Obtener datos del usuario antes de actualizar (para el email)
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, full_name, email')
+      .eq('id', id)
+      .single();
+
+    if (userError || !userData) {
+      console.error('Error fetching user data:', userError);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
     const updateData: Record<string, unknown> = {
       member_status,
       updated_at: new Date().toISOString()
@@ -91,9 +104,52 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Error updating application' }, { status: 500 });
     }
 
+    // Si se aprueba, enviar email de bienvenida con link de activación
+    let emailSent = false;
+    if (member_status === 'active') {
+      try {
+        // Generar link de reset password (para que el usuario configure su contraseña)
+        const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+          type: 'recovery',
+          email: userData.email,
+          options: {
+            redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'https://haltere-api-lightningteam.vercel.app'}/member/login?activated=true`
+          }
+        });
+
+        if (resetError) {
+          console.error('Error generating password reset link:', resetError);
+        } else if (resetData?.properties?.action_link) {
+          // Enviar email con Resend
+          const emailTemplate = templates.welcomeMember({
+            fullName: userData.full_name,
+            activationLink: resetData.properties.action_link
+          });
+
+          const { error: emailError } = await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL || 'Club Haltère <onboarding@resend.dev>',
+            to: userData.email,
+            subject: emailTemplate.subject,
+            html: emailTemplate.html
+          });
+
+          if (emailError) {
+            console.error('Error sending welcome email:', emailError);
+          } else {
+            emailSent = true;
+            console.log(`Welcome email sent to ${userData.email}`);
+          }
+        }
+      } catch (emailErr) {
+        console.error('Error in email process:', emailErr);
+        // No falla la operación si el email falla
+      }
+    }
+
     return NextResponse.json({
       success: true,
       message: `Application ${member_status === 'active' ? 'approved' : member_status === 'rejected' ? 'rejected' : 'updated'}`,
+      emailSent,
       data
     }, { status: 200 });
 
