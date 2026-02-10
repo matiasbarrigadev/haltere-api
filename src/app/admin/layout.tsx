@@ -1,22 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-// Función segura que solo crea el cliente si las variables de entorno están disponibles
-const getSupabase = (): SupabaseClient | null => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    // Durante el build, las variables pueden no estar disponibles
-    return null;
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
-};
+import { getSupabase } from '@/lib/supabase/client';
 
 interface UserProfile {
   id: string;
@@ -60,15 +47,8 @@ export default function AdminLayout({
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
-
-  // Inicializar Supabase client en el cliente (no durante SSR/build)
-  useEffect(() => {
-    const client = getSupabase();
-    if (client) {
-      setSupabase(client);
-    }
-  }, []);
+  // Usar cliente singleton compartido
+  const supabase = getSupabase();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -85,16 +65,10 @@ export default function AdminLayout({
   }, []);
 
   useEffect(() => {
-    if (supabase) {
-      checkAuth();
-    }
-  }, [pathname, supabase]);
+    checkAuth();
+  }, [pathname]);
 
   const checkAuth = async () => {
-    if (!supabase) {
-      return;
-    }
-    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       

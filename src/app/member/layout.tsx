@@ -3,19 +3,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-
-// Función segura que solo crea el cliente si las variables de entorno están disponibles
-const getSupabase = (): SupabaseClient | null => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
-  }
-  
-  return createClient(supabaseUrl, supabaseKey);
-};
+import { getSupabase } from '@/lib/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface NavItem {
   href: string;
@@ -61,15 +50,8 @@ export default function MemberLayout({
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
-  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
-
-  // Inicializar Supabase client en el cliente (no durante SSR/build)
-  useEffect(() => {
-    const client = getSupabase();
-    if (client) {
-      setSupabase(client);
-    }
-  }, []);
+  // Usar cliente singleton compartido
+  const supabase = getSupabase();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -86,19 +68,14 @@ export default function MemberLayout({
   }, []);
 
   useEffect(() => {
-    if (supabase && pathname !== '/member/login') {
+    if (pathname !== '/member/login') {
       checkAuth();
-    } else if (pathname === '/member/login') {
+    } else {
       setIsLoading(false);
     }
-  }, [pathname, supabase]);
+  }, [pathname]);
 
   const checkAuth = async () => {
-    if (!supabase) {
-      setIsLoading(false);
-      return;
-    }
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -109,7 +86,7 @@ export default function MemberLayout({
 
       const { data: profile } = await supabase
         .from('user_profiles')
-        .select('id, full_name, email, role, member_status, bonus_balance')
+        .select('id, full_name, email, role, member_status')
         .eq('id', session.user.id)
         .single();
 
@@ -137,7 +114,7 @@ export default function MemberLayout({
         full_name: profile.full_name || 'Usuario',
         role: profile.role,
         member_status: profile.member_status || 'active',
-        bonus_balance: profile.bonus_balance || 0,
+        bonus_balance: 0, // TODO: Obtener de tabla de wallet cuando exista
       });
     } catch (error) {
       console.error('Auth error:', error);
