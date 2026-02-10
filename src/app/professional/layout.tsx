@@ -80,11 +80,19 @@ export default function ProfessionalLayout({ children }: { children: React.React
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('*, professional_profiles(*)')
-      .eq('user_id', session.user.id)
+      .eq('id', session.user.id)
       .single();
 
-    if (!profile || profile.role !== 'professional') {
+    if (!profile) {
       router.push('/login');
+      return;
+    }
+
+    // Permitir acceso a admin/superadmin (pueden ver cualquier panel)
+    // y a profesionales
+    const allowedRoles = ['professional', 'admin', 'superadmin'];
+    if (!allowedRoles.includes(profile.role)) {
+      router.push('/member');
       return;
     }
 

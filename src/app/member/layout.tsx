@@ -3,6 +3,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+
+// Función segura que solo crea el cliente si las variables de entorno están disponibles
+const getSupabase = (): SupabaseClient | null => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return null;
+  }
+  
+  return createClient(supabaseUrl, supabaseKey);
+};
 
 interface NavItem {
   href: string;
@@ -11,13 +24,13 @@ interface NavItem {
   badge?: number;
 }
 
-interface UserSession {
+interface UserProfile {
   id: string;
   email: string;
   full_name: string;
   role: string;
-  member_status: string;
-  bonus_balance: number;
+  member_status?: string;
+  bonus_balance?: number;
 }
 
 interface RoleOption {
@@ -40,18 +53,32 @@ export default function MemberLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<UserSession | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const roleDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
 
-  // Close dropdown when clicking outside
+  // Inicializar Supabase client en el cliente (no durante SSR/build)
+  useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      setSupabase(client);
+    }
+  }, []);
+
+  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
         setIsRoleDropdownOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -59,14 +86,66 @@ export default function MemberLayout({
   }, []);
 
   useEffect(() => {
-    const userSession = sessionStorage.getItem('haltere_user_session');
-    if (userSession) {
-      setUser(JSON.parse(userSession));
-    } else if (pathname !== '/member/login') {
-      router.push('/member/login');
+    if (supabase && pathname !== '/member/login') {
+      checkAuth();
+    } else if (pathname === '/member/login') {
+      setIsLoading(false);
     }
-    setIsLoading(false);
-  }, [pathname, router]);
+  }, [pathname, supabase]);
+
+  const checkAuth = async () => {
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role, member_status, bonus_balance')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!profile) {
+        router.push('/login');
+        return;
+      }
+
+      // Permitir acceso a member, admin y superadmin
+      // Admin/superadmin pueden ver cualquier panel
+      const allowedRoles = ['member', 'admin', 'superadmin'];
+      if (!allowedRoles.includes(profile.role)) {
+        // Si es profesional, redirigir a su panel
+        if (profile.role === 'professional') {
+          router.push('/professional');
+        } else {
+          router.push('/login');
+        }
+        return;
+      }
+
+      setUser({
+        id: profile.id,
+        email: profile.email || session.user.email || '',
+        full_name: profile.full_name || 'Usuario',
+        role: profile.role,
+        member_status: profile.member_status || 'active',
+        bonus_balance: profile.bonus_balance || 0,
+      });
+    } catch (error) {
+      console.error('Auth error:', error);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (pathname === '/member/login') {
     return <>{children}</>;
@@ -107,9 +186,12 @@ export default function MemberLayout({
     { href: '/member/schedule', label: 'Agendar', icon: '➕' },
   ];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
     sessionStorage.removeItem('haltere_user_session');
-    router.push('/member/login');
+    router.push('/login');
   };
 
   const getNavItemStyle = (item: NavItem): React.CSSProperties => {
@@ -138,6 +220,13 @@ export default function MemberLayout({
       color: isActive ? '#d4af37' : isHovered ? '#ffffff' : '#888888',
     };
   };
+
+  const userInitials = user.full_name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', display: 'flex' }}>
@@ -241,7 +330,7 @@ export default function MemberLayout({
               Mi Balance
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ color: '#d4af37', fontSize: '32px', fontWeight: 700 }}>{user.bonus_balance}</span>
+              <span style={{ color: '#d4af37', fontSize: '32px', fontWeight: 700 }}>{user.bonus_balance || 0}</span>
               <span style={{ color: '#888888', fontSize: '14px' }}>bonos</span>
             </div>
             <Link href="/member/bonos" style={{
@@ -262,7 +351,7 @@ export default function MemberLayout({
         )}
 
         {/* Navigation */}
-        <nav style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
+        <nav className="member-sidebar-nav" style={{ flex: 1, padding: '8px 12px', overflowY: 'auto' }}>
           {!isSidebarCollapsed && (
             <div style={{
               color: '#555555',
@@ -401,7 +490,7 @@ export default function MemberLayout({
                   overflow: 'hidden',
                 }}>
                   {roleOptions.map((option) => {
-                    const isCurrentRole = option.role === 'member';
+                    const isCurrentPanel = option.role === 'member';
                     return (
                       <Link
                         key={option.role}
@@ -413,29 +502,29 @@ export default function MemberLayout({
                           gap: '12px',
                           padding: '12px 16px',
                           textDecoration: 'none',
-                          color: isCurrentRole ? '#d4af37' : '#999999',
-                          backgroundColor: isCurrentRole ? 'rgba(212, 175, 55, 0.1)' : 'transparent',
+                          color: isCurrentPanel ? '#d4af37' : '#999999',
+                          backgroundColor: isCurrentPanel ? 'rgba(212, 175, 55, 0.1)' : 'transparent',
                           transition: 'all 0.15s ease',
-                          borderLeft: isCurrentRole ? '3px solid #d4af37' : '3px solid transparent',
+                          borderLeft: isCurrentPanel ? '3px solid #d4af37' : '3px solid transparent',
                         }}
                         onMouseEnter={(e) => {
-                          if (!isCurrentRole) {
+                          if (!isCurrentPanel) {
                             e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
                             e.currentTarget.style.color = '#ffffff';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!isCurrentRole) {
+                          if (!isCurrentPanel) {
                             e.currentTarget.style.backgroundColor = 'transparent';
                             e.currentTarget.style.color = '#999999';
                           }
                         }}
                       >
                         <span style={{ fontSize: '16px' }}>{option.icon}</span>
-                        <span style={{ fontSize: '13px', fontWeight: isCurrentRole ? 600 : 400 }}>
+                        <span style={{ fontSize: '13px', fontWeight: isCurrentPanel ? 600 : 400 }}>
                           {option.label}
                         </span>
-                        {isCurrentRole && (
+                        {isCurrentPanel && (
                           <span style={{
                             marginLeft: 'auto',
                             fontSize: '10px',
@@ -456,92 +545,121 @@ export default function MemberLayout({
           )}
         </nav>
 
-        {/* User Section */}
-        <div style={{
-          padding: '16px 12px',
-          borderTop: '1px solid #1a1a1a',
-        }}>
-          {!isSidebarCollapsed && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '12px',
-              backgroundColor: '#111111',
-              borderRadius: '12px',
-              marginBottom: '12px',
-              border: '1px solid #1a1a1a'
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(212, 175, 55, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#d4af37',
-                fontWeight: 600,
-                fontSize: '16px'
-              }}>
-                {user.full_name.charAt(0).toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#ffffff', fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {user.full_name}
-                </div>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '6px',
-                  marginTop: '2px'
-                }}>
-                  <span style={{
-                    backgroundColor: user.member_status === 'vip' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(34, 197, 94, 0.2)',
-                    color: user.member_status === 'vip' ? '#d4af37' : '#22c55e',
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    textTransform: 'uppercase'
-                  }}>
-                    {user.member_status === 'vip' ? 'VIP' : 'Miembro'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+        {/* User Section - Single Button with Dropdown */}
+        <div 
+          ref={userDropdownRef}
+          style={{
+            padding: '12px',
+            borderTop: '1px solid #1a1a1a',
+            position: 'relative',
+          }}
+        >
           <button
-            onClick={handleLogout}
+            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: isSidebarCollapsed ? '0' : '12px',
               justifyContent: isSidebarCollapsed ? 'center' : 'flex-start',
-              padding: isSidebarCollapsed ? '14px' : '14px 16px',
+              padding: isSidebarCollapsed ? '12px' : '12px 14px',
               borderRadius: '12px',
-              backgroundColor: 'transparent',
-              border: '1px solid transparent',
-              color: '#888888',
+              backgroundColor: isUserDropdownOpen ? '#1a1a1a' : '#111111',
+              border: '1px solid #1a1a1a',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
-              fontSize: '14px'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-              e.currentTarget.style.color = '#ef4444';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.borderColor = 'transparent';
-              e.currentTarget.style.color = '#888888';
             }}
           >
-            <span style={{ fontSize: '18px' }}>🚪</span>
-            {!isSidebarCollapsed && <span>Cerrar sesión</span>}
+            <div style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              backgroundColor: 'rgba(212, 175, 55, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#d4af37',
+              fontWeight: 600,
+              fontSize: '14px',
+              flexShrink: 0,
+            }}>
+              {userInitials}
+            </div>
+            {!isSidebarCollapsed && (
+              <>
+                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                  <div style={{ 
+                    color: '#ffffff', 
+                    fontSize: '13px', 
+                    fontWeight: 500,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {user.full_name}
+                  </div>
+                  <div style={{ 
+                    color: '#d4af37', 
+                    fontSize: '11px',
+                    textTransform: 'capitalize'
+                  }}>
+                    {user.role === 'admin' || user.role === 'superadmin' ? `${user.role} (vista member)` : user.member_status || 'Miembro'}
+                  </div>
+                </div>
+                <span style={{ 
+                  color: '#555',
+                  fontSize: '10px',
+                  transform: isUserDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease'
+                }}>
+                  ▲
+                </span>
+              </>
+            )}
           </button>
+
+          {/* User Dropdown Menu */}
+          {isUserDropdownOpen && (
+            <div style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '12px',
+              right: '12px',
+              marginBottom: '4px',
+              backgroundColor: '#1a1a1a',
+              borderRadius: '12px',
+              border: '1px solid #2a2a2a',
+              boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.4)',
+              zIndex: 100,
+              overflow: 'hidden',
+            }}>
+              <button
+                onClick={handleLogout}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  backgroundColor: 'transparent',
+                  border: 'none',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  fontSize: '13px',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>🚪</span>
+                <span>Cerrar sesión</span>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -549,6 +667,27 @@ export default function MemberLayout({
       <main style={{ flex: 1, overflow: 'auto', backgroundColor: '#0a0a0a' }}>
         {children}
       </main>
+
+      {/* Dark scrollbar styles */}
+      <style>{`
+        .member-sidebar-nav::-webkit-scrollbar {
+          width: 4px;
+        }
+        .member-sidebar-nav::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .member-sidebar-nav::-webkit-scrollbar-thumb {
+          background: #2a2a2a;
+          border-radius: 4px;
+        }
+        .member-sidebar-nav::-webkit-scrollbar-thumb:hover {
+          background: #3a3a3a;
+        }
+        .member-sidebar-nav {
+          scrollbar-width: thin;
+          scrollbar-color: #2a2a2a transparent;
+        }
+      `}</style>
     </div>
   );
 }
