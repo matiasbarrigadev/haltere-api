@@ -46,7 +46,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Error creating user' }, { status: 500 });
     }
 
-    // Create user profile with application data
+    // Update user profile with application data
+    // Note: The profile is automatically created by the handle_new_user() trigger
     const applicationNotes = JSON.stringify({
       occupation,
       linkedin_url,
@@ -60,9 +61,7 @@ export async function POST(request: Request) {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .insert({
-        id: authUser.user.id,
-        email,
+      .update({
         full_name,
         phone,
         role: 'member',
@@ -70,14 +69,15 @@ export async function POST(request: Request) {
         application_date: new Date().toISOString(),
         application_notes: applicationNotes
       })
+      .eq('id', authUser.user.id)
       .select()
       .single();
 
     if (profileError) {
       console.error('Profile error:', profileError);
-      // Clean up auth user if profile fails
+      // Clean up auth user if profile update fails
       await supabaseAdmin.auth.admin.deleteUser(authUser.user.id);
-      return NextResponse.json({ error: 'Error creating profile' }, { status: 500 });
+      return NextResponse.json({ error: 'Error updating profile' }, { status: 500 });
     }
 
     return NextResponse.json({
