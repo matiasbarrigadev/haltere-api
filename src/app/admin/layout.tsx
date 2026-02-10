@@ -1,10 +1,21 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@supabase/supabase-js';
 
-const ADMIN_PASSWORD = 'haltere2026';
+const getSupabase = () => createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+}
 
 interface NavItem {
   href: string;
@@ -20,24 +31,55 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const supabase = useMemo(() => getSupabase(), []);
 
   useEffect(() => {
-    const auth = sessionStorage.getItem('haltere_admin_auth');
-    if (auth === 'true') {
-      setIsAuthenticated(true);
-    } else if (pathname !== '/admin/login') {
-      router.push('/admin/login');
-    }
-    setIsLoading(false);
-  }, [pathname, router]);
+    checkAuth();
+  }, [pathname]);
 
-  if (pathname === '/admin/login') {
-    return <>{children}</>;
-  }
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        router.push('/login');
+        return;
+      }
+
+      // Verificar que tiene rol admin
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!profile || !['admin', 'superadmin'].includes(profile.role)) {
+        // No es admin, redirigir según su rol
+        if (profile?.role === 'professional') {
+          router.push('/professional');
+        } else {
+          router.push('/member');
+        }
+        return;
+      }
+
+      setUser({
+        id: profile.id,
+        email: profile.email || session.user.email || '',
+        full_name: profile.full_name || 'Admin',
+        role: profile.role
+      });
+    } catch (error) {
+      console.error('Auth error:', error);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -61,7 +103,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
     return null;
   }
 
@@ -73,11 +115,12 @@ export default function AdminLayout({
     { href: '/admin/services', label: 'Servicios', icon: '🎯' },
     { href: '/admin/bookings', label: 'Reservas', icon: '📅', badge: 6 },
     { href: '/admin/locations', label: 'Sedes', icon: '🏢' },
+    { href: '/admin/users', label: 'Usuarios & Roles', icon: '🔐' },
   ];
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('haltere_admin_auth');
-    router.push('/admin/login');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/login');
   };
 
   const getNavItemStyle = (item: NavItem): React.CSSProperties => {
@@ -106,6 +149,13 @@ export default function AdminLayout({
       color: isActive ? '#d4af37' : isHovered ? '#ffffff' : '#888888',
     };
   };
+
+  const userInitials = user.full_name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', display: 'flex' }}>
@@ -148,7 +198,6 @@ export default function AdminLayout({
                   fontSize: '18px',
                   fontWeight: 700,
                   letterSpacing: '2px',
-                  fontFamily: 'system-ui'
                 }}>
                   HALTERE
                 </div>
@@ -270,40 +319,47 @@ export default function AdminLayout({
           </ul>
 
           {/* Divider */}
-          <div style={{ 
-            height: '1px', 
-            backgroundColor: '#1a1a1a', 
-            margin: '16px 0' 
-          }} />
+          <div style={{ height: '1px', backgroundColor: '#1a1a1a', margin: '16px 0' }} />
 
-          {/* Quick Stats (only when expanded) */}
+          {/* Role Switch (si tiene múltiples roles) */}
           {!isSidebarCollapsed && (
-            <div style={{
-              backgroundColor: '#111111',
-              borderRadius: '12px',
-              padding: '16px',
-              border: '1px solid #1a1a1a'
-            }}>
-              <div style={{ 
-                color: '#666666', 
-                fontSize: '11px', 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <div style={{
+                color: '#555555',
+                fontSize: '11px',
+                fontWeight: 600,
                 textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                marginBottom: '12px'
+                letterSpacing: '1px',
+                padding: '8px 16px',
               }}>
-                Resumen Rápido
+                Cambiar Panel
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {[
-                  { label: 'Hoy', value: '12', color: '#22c55e' },
-                  { label: 'Pendientes', value: '3', color: '#eab308' },
-                ].map((stat, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#888888', fontSize: '13px' }}>{stat.label}</span>
-                    <span style={{ color: stat.color, fontWeight: 600, fontSize: '14px' }}>{stat.value}</span>
-                  </div>
-                ))}
-              </div>
+              <Link
+                href="/member"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                  color: '#666666',
+                  backgroundColor: 'transparent',
+                  border: '1px solid transparent',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                  e.currentTarget.style.color = '#999999';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#666666';
+                }}
+              >
+                <span>👤</span>
+                <span style={{ fontSize: '13px' }}>Ver como Member</span>
+              </Link>
             </div>
           )}
         </nav>
@@ -336,11 +392,26 @@ export default function AdminLayout({
                 fontWeight: 600,
                 fontSize: '14px'
               }}>
-                A
+                {userInitials}
               </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ color: '#ffffff', fontSize: '13px', fontWeight: 500 }}>Admin</div>
-                <div style={{ color: '#666666', fontSize: '11px' }}>Administrador</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ 
+                  color: '#ffffff', 
+                  fontSize: '13px', 
+                  fontWeight: 500,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {user.full_name}
+                </div>
+                <div style={{ 
+                  color: '#d4af37', 
+                  fontSize: '11px',
+                  textTransform: 'capitalize'
+                }}>
+                  {user.role}
+                </div>
               </div>
             </div>
           )}
