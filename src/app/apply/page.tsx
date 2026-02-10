@@ -1,40 +1,8 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useState } from 'react';
-
-// Logo SVG Component based on Brand Guidelines
-const HaltereLogo = ({ className = '', size = 'default' }: { className?: string; size?: 'default' | 'large' }) => {
-  const height = size === 'large' ? 60 : 40;
-  return (
-    <svg 
-      viewBox="0 0 100 100" 
-      height={height}
-      className={className}
-      fill="currentColor"
-      aria-label="Haltere Logo"
-    >
-      {/* Stylized H with barbell bars */}
-      <g>
-        {/* Left vertical bar with weights */}
-        <rect x="20" y="15" width="4" height="70" />
-        <rect x="15" y="20" width="14" height="8" rx="1" />
-        <rect x="15" y="72" width="14" height="8" rx="1" />
-        
-        {/* Center H connector */}
-        <rect x="24" y="45" width="52" height="4" />
-        
-        {/* Middle vertical (T of halTere) */}
-        <rect x="48" y="25" width="4" height="50" />
-        
-        {/* Right vertical bar with weights */}
-        <rect x="76" y="15" width="4" height="70" />
-        <rect x="71" y="20" width="14" height="8" rx="1" />
-        <rect x="71" y="72" width="14" height="8" rx="1" />
-      </g>
-    </svg>
-  );
-};
 
 export default function ApplyPage() {
   const [step, setStep] = useState(1);
@@ -486,11 +454,13 @@ function Header() {
       <div className="container">
         <div className="header-inner">
           <Link href="/" className="logo">
-            <HaltereLogo />
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ letterSpacing: '0.3em' }}>haltere</span>
-              <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
-            </span>
+            <Image 
+              src="/logooficial.svg" 
+              alt="Haltere Club" 
+              width={180} 
+              height={36}
+              priority
+            />
           </Link>
           
           <nav className="nav">
@@ -510,12 +480,13 @@ function Footer() {
     <footer className="footer">
       <div className="container">
         <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'center' }}>
-          <Link href="/" className="logo" style={{ justifyContent: 'center' }}>
-            <HaltereLogo />
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-              <span style={{ letterSpacing: '0.3em' }}>haltere</span>
-              <span style={{ fontSize: '0.5em', letterSpacing: '0.4em', opacity: 0.7 }}>28250</span>
-            </span>
+          <Link href="/" style={{ display: 'flex', justifyContent: 'center' }}>
+            <Image 
+              src="/logooficial.svg" 
+              alt="Haltere Club" 
+              width={150} 
+              height={30}
+            />
           </Link>
         </div>
         <p className="footer-text">
