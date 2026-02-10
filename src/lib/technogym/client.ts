@@ -3,15 +3,19 @@
  * Server-to-Server Integration
  * Documentation: https://apidocs.mywellness.com
  * 
- * AUTHENTICATION FLOW (as per official docs):
- * 1. POST /bridge/access/AccessIntegration -> Returns accessToken
- * 2. Use Authorization: Bearer {accessToken} for subsequent calls
+ * AUTHENTICATION FLOW (based on working Wix implementation):
+ * 1. POST /{facilityUrl}/application/{applicationId}/AccessIntegration
+ * 2. Token is returned in response.token
+ * 3. Token is passed in body of subsequent requests
  */
 
-// Environment configuration - ALWAYS use production
-const API_BASE_URL = process.env.TECHNOGYM_ENV === 'development' 
-  ? 'https://api-dev.mywellness.com'
-  : 'https://api.mywellness.com';
+// Environment configuration - DEFAULT TO DEV for testing
+const API_BASE_URL = process.env.TECHNOGYM_ENV === 'production' 
+  ? 'https://api.mywellness.com'
+  : 'https://api-dev.mywellness.com';
+
+// Application ID for third party integrations (fixed value from Technogym)
+const APPLICATION_ID = '69295ed5-a53c-434b-8518-f2e0b5f05b28';
 
 // Credentials from environment
 const API_KEY = process.env.TECHNOGYM_API_KEY || '';
@@ -20,9 +24,9 @@ const PASSWORD = process.env.TECHNOGYM_PASSWORD || '';
 const FACILITY_URL = process.env.TECHNOGYM_FACILITY_URL || '';
 
 // Token cache
-let accessToken: string | null = null;
+let sessionToken: string | null = null;
 let tokenExpiry: Date | null = null;
-let facilityId: string | null = null;
+let cachedFacilityId: string | null = null;
 
 // =============================================================================
 // TYPES
@@ -30,13 +34,16 @@ let facilityId: string | null = null;
 
 interface TechnogymAuthResponse {
   data: {
-    accessToken: string;
     facilities: Array<{
       id: string;
       url: string;
       name: string;
     }>;
+    accountConfirmed: boolean;
+    result: string;
   };
+  token: string;
+  expireIn: number;
 }
 
 export interface CreateUserResponse {
@@ -45,13 +52,13 @@ export interface CreateUserResponse {
     userId?: string;
     facilityUserId?: string;
     permanentToken?: string;
-    // For multiple matches case
     matchedUsers?: Array<{
       userId: string;
       facilityUserId: string;
       email: string;
     }>;
   };
+  token?: string;
 }
 
 export interface GetUserResponse {
@@ -76,18 +83,21 @@ export interface GetUserResponse {
     createdOn?: string;
     modifiedOn?: string;
   };
+  token?: string;
 }
 
 export interface SaveMembershipResponse {
   data: {
     result: 'Success' | 'Error';
   };
+  token?: string;
 }
 
 export interface VisitResponse {
   data: {
     result: 'Success' | 'Error';
   };
+  token?: string;
 }
 
 export interface TechnogymUser {
@@ -113,21 +123,21 @@ export type MembershipOperation =
   | 'UnFroze';
 
 // =============================================================================
-// AUTHENTICATION (Official Documentation)
+// AUTHENTICATION
 // =============================================================================
 
 /**
  * Authenticate with Technogym API
  * 
- * Endpoint: POST /bridge/access/AccessIntegration
- * Headers: X-MWAPPS-CLIENT: thirdParties
- * Body: { ApiKey, Username, Password }
- * Response: { data: { accessToken, facilities[] } }
+ * Endpoint: POST /{facilityUrl}/application/{applicationId}/AccessIntegration
+ * Headers: X-MWAPPS-CLIENT: thirdParties, X-MWAPPS-APIKEY: {apiKey}
+ * Body: { apiKey, username, password }
+ * Response: { data: { facilities[] }, token, expireIn }
  */
 export async function authenticate(): Promise<{ token: string; facilityId: string }> {
   // Check cached token (expires in 30 min, refresh at 25 min)
-  if (accessToken && tokenExpiry && facilityId && new Date() < tokenExpiry) {
-    return { token: accessToken, facilityId };
+  if (sessionToken && tokenExpiry && cachedFacilityId && new Date() < tokenExpiry) {
+    return { token: sessionToken, facilityId: cachedFacilityId };
   }
 
   // Validate configuration before attempting auth
@@ -140,16 +150,14 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     throw new Error(`Technogym configuration incomplete. Missing: ${missing.join(', ')}`);
   }
 
-  // Official endpoint: /bridge/access/AccessIntegration
-  const url = `${API_BASE_URL}/bridge/access/AccessIntegration`;
+  // Correct endpoint: /{facilityUrl}/application/{applicationId}/AccessIntegration
+  const url = `${API_BASE_URL}/${FACILITY_URL}/application/${APPLICATION_ID}/AccessIntegration`;
   
   console.log('[Technogym] Authenticating...', { 
     url, 
     baseUrl: API_BASE_URL,
     facilityUrl: FACILITY_URL,
-    hasApiKey: !!API_KEY,
-    hasUsername: !!USERNAME,
-    hasPassword: !!PASSWORD,
+    applicationId: APPLICATION_ID,
   });
   
   const response = await fetch(url, {
@@ -157,11 +165,12 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     headers: {
       'Content-Type': 'application/json',
       'X-MWAPPS-CLIENT': 'thirdParties',
+      'X-MWAPPS-APIKEY': API_KEY,
     },
     body: JSON.stringify({
-      ApiKey: API_KEY,
-      Username: USERNAME,
-      Password: PASSWORD,
+      apiKey: API_KEY,
+      username: USERNAME,
+      password: PASSWORD,
     }),
   });
 
@@ -183,10 +192,10 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     throw new Error(`Technogym authentication failed: ${response.status} - ${JSON.stringify(data)}`);
   }
   
-  // Token is in data.accessToken according to official docs
-  if (!data.data?.accessToken) {
-    console.error('[Technogym] No accessToken in response:', data);
-    throw new Error(`Technogym authentication failed: No accessToken in response`);
+  // Token is in response.token (not data.accessToken)
+  if (!data.token) {
+    console.error('[Technogym] No token in response:', data);
+    throw new Error(`Technogym authentication failed: No token in response`);
   }
   
   if (!data.data?.facilities?.[0]?.id) {
@@ -194,35 +203,43 @@ export async function authenticate(): Promise<{ token: string; facilityId: strin
     throw new Error('Technogym authentication failed: No facility found');
   }
 
-  accessToken = data.data.accessToken;
-  facilityId = data.data.facilities[0].id;
-  // Token expires in 30 min, refresh at 25 min to be safe
+  sessionToken = data.token;
+  cachedFacilityId = data.data.facilities[0].id;
+  // Token expires in 30 min (expireIn: 1800), refresh at 25 min to be safe
   tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
   
   console.log('[Technogym] Auth successful:', {
-    facilityId,
+    facilityId: cachedFacilityId,
     facilityName: data.data.facilities[0].name,
-    tokenLength: accessToken.length,
+    tokenLength: sessionToken.length,
+    expiresIn: data.expireIn,
   });
   
-  return { token: accessToken, facilityId };
+  return { token: sessionToken, facilityId: cachedFacilityId };
 }
 
 /**
- * Make authenticated API request using Authorization: Bearer header
+ * Make authenticated API request
+ * Token is passed in the body of the request (not in Authorization header)
  */
 async function apiRequest<T>(
   endpoint: string,
   body: Record<string, unknown> = {},
   method: 'GET' | 'POST' = 'POST'
 ): Promise<T> {
-  const { token, facilityId: fId } = await authenticate();
+  const { token, facilityId } = await authenticate();
   
   // Replace {facilityId} placeholder in endpoint
-  const resolvedEndpoint = endpoint.replace('{facilityId}', fId);
+  const resolvedEndpoint = endpoint.replace('{facilityId}', facilityId);
   const url = `${API_BASE_URL}/${FACILITY_URL}${resolvedEndpoint}`;
   
-  console.log('[Technogym] API Request:', { method, url, body });
+  // Add token to body (as per working Wix implementation)
+  const requestBody = {
+    ...body,
+    token: token,
+  };
+  
+  console.log('[Technogym] API Request:', { method, url, body: requestBody });
   
   const response = await fetch(url, {
     method,
@@ -230,22 +247,28 @@ async function apiRequest<T>(
       'Content-Type': 'application/json',
       'X-MWAPPS-CLIENT': 'thirdParties',
       'X-MWAPPS-APIKEY': API_KEY,
-      'Authorization': `Bearer ${token}`,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
   });
 
   const responseText = await response.text();
   console.log('[Technogym] API Response status:', response.status);
   console.log('[Technogym] API Response:', responseText.substring(0, 500));
   
-  let responseData: T & { errors?: Array<{ message: string }> };
+  let responseData: T & { errors?: Array<{ message: string }>; token?: string };
   
   try {
     responseData = JSON.parse(responseText);
   } catch {
     console.error('[Technogym] Invalid JSON response:', responseText);
     throw new Error(`Technogym API error: Invalid JSON response`);
+  }
+
+  // Update session token if a new one is returned
+  if (responseData.token) {
+    sessionToken = responseData.token;
+    tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
+    console.log('[Technogym] Session token updated');
   }
 
   // Check for errors in response
@@ -291,7 +314,7 @@ export type CreateUserResult =
  * Endpoint: POST /core/facility/{facilityId}/CreateFacilityUserFromThirdParty
  * 
  * MATCHING LOGIC:
- * - If firstName + lastName + gender + dateOfBirth match existing user -> MatchFound (returns existing user)
+ * - If firstName + lastName + gender + dateOfBirth match existing user -> MatchFound
  * - If multiple matches -> UserEmailAndDataMatchFound (returns list to choose from)
  * - If no match -> Created (new user)
  */
@@ -374,12 +397,12 @@ export async function getUserByPermanentToken(permanentToken: string): Promise<T
 
 /**
  * Get user by external ID (your internal user ID)
- * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserFromExternalId
+ * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserByExternalID
  */
 export async function getUserByExternalId(externalId: string): Promise<TechnogymUser | null> {
   try {
     const response = await apiRequest<GetUserResponse>(
-      '/core/facility/{facilityId}/GetFacilityUserFromExternalId',
+      '/core/facility/{facilityId}/GetFacilityUserByExternalID',
       { externalId }
     );
 
@@ -549,8 +572,8 @@ export async function registerVisit(
 // =============================================================================
 
 export async function getFacilityId(): Promise<string> {
-  const { facilityId: fId } = await authenticate();
-  return fId;
+  const { facilityId } = await authenticate();
+  return facilityId;
 }
 
 export function isConfigured(): boolean {
@@ -564,21 +587,23 @@ export function getConfigStatus(): {
   facilityUrl: boolean;
   environment: string;
   baseUrl: string;
+  applicationId: string;
 } {
   return {
     apiKey: !!API_KEY,
     username: !!USERNAME,
     password: !!PASSWORD,
     facilityUrl: !!FACILITY_URL,
-    environment: process.env.TECHNOGYM_ENV || 'production',
+    environment: process.env.TECHNOGYM_ENV || 'development',
     baseUrl: API_BASE_URL,
+    applicationId: APPLICATION_ID,
   };
 }
 
 export function clearTokenCache(): void {
-  accessToken = null;
+  sessionToken = null;
   tokenExpiry = null;
-  facilityId = null;
+  cachedFacilityId = null;
   console.log('[Technogym] Token cache cleared');
 }
 
