@@ -434,3 +434,77 @@ export async function getUserFitnessProfile(userId: string) {
   };
 }
 
+// ============================================
+// FACILITY MANAGEMENT (Admin)
+// ============================================
+
+export interface FacilityUser extends TechnogymUser {
+  lastActivityDate?: string;
+  registrationDate?: string;
+  status?: string;
+}
+
+/**
+ * Get all users from the facility (for admin dashboard)
+ */
+export async function getFacilityUsers(options?: {
+  limit?: number;
+  offset?: number;
+  search?: string;
+}): Promise<{ users: FacilityUser[]; total: number }> {
+  await authenticate(); // Ensure we have facilityId
+  
+  let endpoint = `/core/facility/${facilityId}/facilityusers`;
+  
+  const params = new URLSearchParams();
+  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.offset) params.append('offset', options.offset.toString());
+  if (options?.search) params.append('search', options.search);
+  
+  const queryString = params.toString();
+  if (queryString) endpoint += `?${queryString}`;
+  
+  const response = await apiRequest<{ 
+    data: { 
+      items: FacilityUser[];
+      totalCount?: number;
+    } 
+  }>(endpoint);
+  
+  return {
+    users: response.data.items || [],
+    total: response.data.totalCount || response.data.items?.length || 0
+  };
+}
+
+/**
+ * Get current facility ID
+ */
+export async function getFacilityId(): Promise<string> {
+  await authenticate();
+  return facilityId!;
+}
+
+/**
+ * Get comprehensive user data for admin view
+ */
+export async function getFullUserProfile(userId: string) {
+  const [user, stats, biometrics, programs, recentWorkouts] = await Promise.all([
+    getUser(userId),
+    calculateUserStats(userId),
+    getBiometrics(userId, {
+      from: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+    }),
+    getTrainingPrograms(userId),
+    getWorkoutResults(userId, { limit: 20 })
+  ]);
+
+  return {
+    user,
+    stats,
+    biometrics,
+    programs,
+    recentWorkouts
+  };
+}
+

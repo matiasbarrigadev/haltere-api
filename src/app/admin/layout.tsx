@@ -168,6 +168,7 @@ export default function AdminLayout({
     { href: '/admin/services', label: 'Servicios', icon: '🎯' },
     { href: '/admin/bookings', label: 'Reservas', icon: '📅', badge: 6 },
     { href: '/admin/locations', label: 'Sedes', icon: '🏢' },
+    { href: '/admin/technogym', label: 'Technogym', icon: '🏋️' },
     { href: '/admin/users', label: 'Usuarios & Roles', icon: '🔐' },
   ];
 
