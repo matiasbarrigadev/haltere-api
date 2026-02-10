@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 
 // Particle type for floating dots
@@ -34,61 +35,6 @@ interface TrailPoint {
   age: number;
 }
 
-// Haltere official logo SVG component - exact brand recreation
-const HaltereLogoAnimated: React.FC<{ size: number }> = ({ size }) => (
-  <svg 
-    viewBox="0 0 100 100" 
-    width={size} 
-    height={size}
-    fill="#F2BB6A"
-    aria-label="Haltere Icon"
-    style={{
-      filter: 'drop-shadow(0 0 30px rgba(242, 187, 106, 0.4))',
-    }}
-  >
-    {/* Left arc - partial circle following outer edge */}
-    <path 
-      d="M18 12 C8 20 5 35 5 50 C5 65 8 80 18 88"
-      fill="none"
-      stroke="#F2BB6A"
-      strokeWidth="4"
-      strokeLinecap="round"
-    />
-    
-    {/* Left H barbell */}
-    <g>
-      <rect x="18" y="15" width="4" height="70" rx="2" fill="#F2BB6A"/>
-      <rect x="28" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      <rect x="18" y="28" width="14" height="4" rx="1" fill="#F2BB6A"/>
-      <rect x="18" y="68" width="14" height="4" rx="1" fill="#F2BB6A"/>
-    </g>
-    
-    {/* Center H barbell */}
-    <g>
-      <rect x="40" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      <rect x="56" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      <rect x="40" y="28" width="20" height="4" rx="1" fill="#F2BB6A"/>
-      <rect x="40" y="68" width="20" height="4" rx="1" fill="#F2BB6A"/>
-    </g>
-    
-    {/* Right H barbell */}
-    <g>
-      <rect x="68" y="22" width="4" height="56" rx="2" fill="#F2BB6A"/>
-      <rect x="78" y="15" width="4" height="70" rx="2" fill="#F2BB6A"/>
-      <rect x="68" y="28" width="14" height="4" rx="1" fill="#F2BB6A"/>
-      <rect x="68" y="68" width="14" height="4" rx="1" fill="#F2BB6A"/>
-    </g>
-    
-    {/* Right arc - partial circle following outer edge */}
-    <path 
-      d="M82 12 C92 20 95 35 95 50 C95 65 92 80 82 88"
-      fill="none"
-      stroke="#F2BB6A"
-      strokeWidth="4"
-      strokeLinecap="round"
-    />
-  </svg>
-);
 
 interface InteractiveHeroProps {
   onScrollDown?: () => void;
@@ -412,51 +358,23 @@ export default function InteractiveHero({ onScrollDown }: InteractiveHeroProps) 
           pointerEvents: 'none',
         }}
       >
-        {/* Logo */}
+        {/* Official Logo */}
         <div
           className="hero-logo"
           style={{
             marginBottom: '2rem',
             animation: 'fadeInScale 1s ease-out forwards',
             pointerEvents: 'auto',
+            filter: 'drop-shadow(0 0 30px rgba(242, 187, 106, 0.4))',
           }}
         >
-          <HaltereLogoAnimated size={100} />
-        </div>
-
-        {/* Brand name */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            marginBottom: '1.5rem',
-            animation: 'fadeInUp 1s ease-out 0.2s forwards',
-            opacity: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: '2rem',
-              fontWeight: 300,
-              letterSpacing: '0.5em',
-              color: '#F2BB6A',
-              textTransform: 'lowercase',
-              fontFamily: "'Open Sans', Arial, sans-serif",
-            }}
-          >
-            haltere
-          </span>
-          <span
-            style={{
-              fontSize: '0.875rem',
-              letterSpacing: '0.6em',
-              color: 'rgba(242, 187, 106, 0.6)',
-              marginTop: '0.25rem',
-            }}
-          >
-            28250
-          </span>
+          <Image 
+            src="/logooficial.svg" 
+            alt="Haltere Club" 
+            width={280} 
+            height={50}
+            priority
+          />
         </div>
 
         {/* Separator line */}
