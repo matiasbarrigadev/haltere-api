@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 
@@ -20,6 +20,19 @@ interface UserSession {
   bonus_balance: number;
 }
 
+interface RoleOption {
+  role: string;
+  label: string;
+  icon: string;
+  href: string;
+}
+
+const roleOptions: RoleOption[] = [
+  { role: 'member', label: 'Miembro', icon: '👤', href: '/member' },
+  { role: 'professional', label: 'Profesional', icon: '💼', href: '/professional' },
+  { role: 'admin', label: 'Admin', icon: '🔐', href: '/admin' },
+];
+
 export default function MemberLayout({
   children,
 }: {
@@ -31,6 +44,19 @@ export default function MemberLayout({
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const roleDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (roleDropdownRef.current && !roleDropdownRef.current.contains(event.target as Node)) {
+        setIsRoleDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const userSession = sessionStorage.getItem('haltere_user_session');
@@ -118,12 +144,15 @@ export default function MemberLayout({
       {/* Sidebar */}
       <aside style={{
         width: isSidebarCollapsed ? '80px' : '280px',
+        height: '100vh',
+        position: 'sticky',
+        top: 0,
         backgroundColor: '#0d0d0d',
         borderRight: '1px solid #1a1a1a',
         display: 'flex',
         flexDirection: 'column',
         transition: 'width 0.3s ease',
-        position: 'relative',
+        overflow: 'hidden',
       }}>
         {/* Logo Header */}
         <div style={{
@@ -307,6 +336,124 @@ export default function MemberLayout({
               );
             })}
           </ul>
+
+          {/* Divider */}
+          <div style={{ height: '1px', backgroundColor: '#1a1a1a', margin: '16px 0' }} />
+
+          {/* Role Switch Dropdown */}
+          {!isSidebarCollapsed && (
+            <div ref={roleDropdownRef} style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+              <div style={{
+                color: '#555555',
+                fontSize: '11px',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '1px',
+                padding: '8px 16px',
+              }}>
+                Cambiar Panel
+              </div>
+              <button
+                onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  padding: '12px 16px',
+                  borderRadius: '12px',
+                  textDecoration: 'none',
+                  color: '#d4af37',
+                  backgroundColor: 'rgba(212, 175, 55, 0.1)',
+                  border: '1px solid rgba(212, 175, 55, 0.2)',
+                  transition: 'all 0.2s ease',
+                  cursor: 'pointer',
+                  width: '100%',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span>👤</span>
+                  <span>Miembro</span>
+                </span>
+                <span style={{ 
+                  transform: isRoleDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease'
+                }}>
+                  ▼
+                </span>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {isRoleDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: '4px',
+                  backgroundColor: '#1a1a1a',
+                  borderRadius: '12px',
+                  border: '1px solid #2a2a2a',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+                  zIndex: 100,
+                  overflow: 'hidden',
+                }}>
+                  {roleOptions.map((option) => {
+                    const isCurrentRole = option.role === 'member';
+                    return (
+                      <Link
+                        key={option.role}
+                        href={option.href}
+                        onClick={() => setIsRoleDropdownOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          padding: '12px 16px',
+                          textDecoration: 'none',
+                          color: isCurrentRole ? '#d4af37' : '#999999',
+                          backgroundColor: isCurrentRole ? 'rgba(212, 175, 55, 0.1)' : 'transparent',
+                          transition: 'all 0.15s ease',
+                          borderLeft: isCurrentRole ? '3px solid #d4af37' : '3px solid transparent',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isCurrentRole) {
+                            e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)';
+                            e.currentTarget.style.color = '#ffffff';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isCurrentRole) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#999999';
+                          }
+                        }}
+                      >
+                        <span style={{ fontSize: '16px' }}>{option.icon}</span>
+                        <span style={{ fontSize: '13px', fontWeight: isCurrentRole ? 600 : 400 }}>
+                          {option.label}
+                        </span>
+                        {isCurrentRole && (
+                          <span style={{
+                            marginLeft: 'auto',
+                            fontSize: '10px',
+                            color: '#d4af37',
+                            backgroundColor: 'rgba(212, 175, 55, 0.2)',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                          }}>
+                            Actual
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </nav>
 
         {/* User Section */}

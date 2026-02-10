@@ -1,14 +1,21 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+// Función segura que solo crea el cliente si las variables de entorno están disponibles
+const getSupabase = (): SupabaseClient | null => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return null;
+  }
+  
+  return createClient(supabaseUrl, supabaseKey);
+};
 
 export default function UnifiedLoginPage() {
   const [email, setEmail] = useState('');
@@ -22,13 +29,28 @@ export default function UnifiedLoginPage() {
   const [approvedMember, setApprovedMember] = useState<{profileId: string, fullName: string} | null>(null);
   const [showApplyPrompt, setShowApplyPrompt] = useState(false);
   const router = useRouter();
-  const supabase = useMemo(() => getSupabase(), []);
+  const [supabase, setSupabase] = useState<SupabaseClient | null>(null);
+
+  // Inicializar Supabase client en el cliente (no durante SSR/build)
+  useEffect(() => {
+    const client = getSupabase();
+    if (client) {
+      setSupabase(client);
+    }
+  }, []);
 
   useEffect(() => {
-    checkExistingSession();
+    if (supabase) {
+      checkExistingSession();
+    }
   }, [supabase]);
 
   const checkExistingSession = async () => {
+    if (!supabase) {
+      setCheckingSession(false);
+      return;
+    }
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
@@ -40,6 +62,8 @@ export default function UnifiedLoginPage() {
   };
 
   const redirectBasedOnRole = async (userId: string) => {
+    if (!supabase) return;
+    
     try {
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -92,6 +116,11 @@ export default function UnifiedLoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setError('Error de conexión. Recarga la página.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     setSuccessMessage('');
@@ -129,6 +158,11 @@ export default function UnifiedLoginPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setError('Error de conexión. Recarga la página.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
@@ -183,6 +217,11 @@ export default function UnifiedLoginPage() {
 
   const handleCreateApprovedAccount = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setError('Error de conexión. Recarga la página.');
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
@@ -349,7 +388,9 @@ export default function UnifiedLoginPage() {
 
             <button
               onClick={async () => {
-                await supabase.auth.signOut();
+                if (supabase) {
+                  await supabase.auth.signOut();
+                }
                 setShowApplyPrompt(false);
                 setMode('login');
               }}
