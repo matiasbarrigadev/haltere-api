@@ -317,6 +317,8 @@ export type CreateUserResult =
  * - If firstName + lastName + gender + dateOfBirth match existing user -> MatchFound
  * - If multiple matches -> UserEmailAndDataMatchFound (returns list to choose from)
  * - If no match -> Created (new user)
+ * 
+ * NOTE: externalId is REQUIRED by Technogym API. If not provided, a UUID will be generated.
  */
 export async function createUser(userData: {
   firstName: string;
@@ -324,8 +326,11 @@ export async function createUser(userData: {
   email: string;
   dateOfBirth?: string; // Format: YYYY-MM-DD
   gender?: 'M' | 'F';
-  externalId?: string; // Your internal user ID
+  externalId?: string; // Your internal user ID (auto-generated if not provided)
 }): Promise<CreateUserResult> {
+  // ExternalId is REQUIRED by Technogym API - generate UUID if not provided
+  const externalId = userData.externalId || crypto.randomUUID();
+  
   const response = await apiRequest<CreateUserResponse>(
     '/core/facility/{facilityId}/CreateFacilityUserFromThirdParty',
     {
@@ -334,7 +339,7 @@ export async function createUser(userData: {
       email: userData.email,
       dateOfBirth: userData.dateOfBirth,
       gender: userData.gender,
-      externalId: userData.externalId,
+      externalId: externalId,
     }
   );
 
