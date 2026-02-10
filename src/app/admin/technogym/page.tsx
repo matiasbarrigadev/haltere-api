@@ -77,6 +77,17 @@ export default function TechnogymAdminPage() {
   const [createResult, setCreateResult] = useState<CreateUserResult | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   
+  // Member selection for linking
+  interface HaltereMember {
+    id: string;
+    email: string;
+    full_name: string;
+    technogym_user_id: string | null;
+  }
+  const [haltereMembers, setHaltereMembers] = useState<HaltereMember[]>([]);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  
   const [lookupId, setLookupId] = useState('');
   const [lookupType, setLookupType] = useState<'externalId' | 'permanentToken' | 'userId'>('externalId');
   const [lookupResult, setLookupResult] = useState<TechnogymUser | null>(null);
@@ -119,7 +130,49 @@ export default function TechnogymAdminPage() {
     }
   }, [getAuthHeaders]);
 
+  // Load Haltere members without technogym_user_id
+  const loadHaltereMembers = useCallback(async () => {
+    setLoadingMembers(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const { data, error: sbError } = await supabase
+        .from('user_profiles')
+        .select('id, email, full_name, technogym_user_id')
+        .in('role', ['member', 'admin', 'superadmin', 'professional'])
+        .is('technogym_user_id', null)
+        .order('full_name');
+      if (sbError) throw sbError;
+      setHaltereMembers(data || []);
+    } catch (err) {
+      console.error('Error loading members:', err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, []);
+
   useEffect(() => { fetchStatus(); }, [fetchStatus]);
+  useEffect(() => { loadHaltereMembers(); }, [loadHaltereMembers]);
+
+  // Handle member selection - pre-fill form
+  const handleMemberSelect = (memberId: string) => {
+    setSelectedMemberId(memberId);
+    if (!memberId) {
+      setCreateForm(f => ({ ...f, firstName: '', lastName: '', email: '', externalId: '' }));
+      return;
+    }
+    const member = haltereMembers.find(m => m.id === memberId);
+    if (member) {
+      const [firstName = '', ...lastParts] = member.full_name.split(' ');
+      setCreateForm(f => ({
+        ...f,
+        firstName,
+        lastName: lastParts.join(' '),
+        email: member.email,
+        externalId: member.id, // Use Supabase user ID as externalId
+      }));
+    }
+  };
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -274,6 +327,37 @@ export default function TechnogymAdminPage() {
           <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>
             Crea un nuevo contacto directamente en Technogym Mywellness. Si incluyes fechas de membresía, se activará como miembro.
           </p>
+          
+          {/* Member selector */}
+          <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#0a0a0a', borderRadius: '10px', border: '1px solid #2a2a2a' }}>
+            <label style={{ display: 'block', fontSize: '12px', color: '#00b4d8', marginBottom: '8px', fontWeight: 600 }}>
+              🔗 Vincular con miembro existente de Haltere
+            </label>
+            <select 
+              value={selectedMemberId} 
+              onChange={e => handleMemberSelect(e.target.value)} 
+              style={{ ...inputStyle, backgroundColor: '#111' }}
+              disabled={loadingMembers}
+            >
+              <option value="">-- Crear usuario nuevo (sin vincular) --</option>
+              {haltereMembers.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.full_name} ({m.email})
+                </option>
+              ))}
+            </select>
+            {haltereMembers.length > 0 && (
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+                {haltereMembers.length} miembros sin vincular a Technogym
+              </div>
+            )}
+            {selectedMemberId && (
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#22c55e' }}>
+                ✓ External ID será: <code style={{ color: '#00b4d8' }}>{selectedMemberId}</code>
+              </div>
+            )}
+          </div>
+          
           <form onSubmit={handleCreateUser}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Nombre *</label><input type="text" value={createForm.firstName} onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} required style={inputStyle} placeholder="Juan" /></div>

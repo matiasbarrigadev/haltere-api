@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { 
   getFacilityId,
   createUser,
@@ -15,6 +16,47 @@ import {
   authenticate,
   type MembershipOperation
 } from '@/lib/technogym/client';
+
+// Helper to create Supabase admin client
+function getSupabaseAdmin() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  return createClient(url, serviceKey);
+}
+
+// Helper to check if string is valid UUID
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
+// Update Supabase user with Technogym user ID
+async function linkTechnogymToSupabase(supabaseUserId: string, technogymUserId: string) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    console.log('[Technogym] Supabase admin not configured, skipping link');
+    return false;
+  }
+  
+  try {
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({ technogym_user_id: technogymUserId })
+      .eq('id', supabaseUserId);
+      
+    if (error) {
+      console.error('[Technogym] Failed to link user:', error);
+      return false;
+    }
+    
+    console.log('[Technogym] Linked Supabase user', supabaseUserId, 'to Technogym user', technogymUserId);
+    return true;
+  } catch (err) {
+    console.error('[Technogym] Error linking user:', err);
+    return false;
+  }
+}
 
 /**
  * GET /api/admin/technogym
@@ -168,6 +210,11 @@ export async function POST(request: NextRequest) {
           externalId
         });
         
+        // If externalId is a valid UUID (Supabase user ID), link the accounts
+        if (result.success && externalId && isValidUUID(externalId)) {
+          await linkTechnogymToSupabase(externalId, result.userId);
+        }
+        
         return NextResponse.json({
           success: true,
           data: result
@@ -315,6 +362,11 @@ export async function POST(request: NextRequest) {
             notes
           });
           
+          // If externalId is a valid UUID (Supabase user ID), link the accounts
+          if (result.success && externalId && isValidUUID(externalId)) {
+            await linkTechnogymToSupabase(externalId, result.userId);
+          }
+          
           return NextResponse.json({
             success: true,
             action: 'onboard_member',
@@ -330,6 +382,11 @@ export async function POST(request: NextRequest) {
             gender,
             externalId: externalId || undefined
           });
+          
+          // If externalId is a valid UUID (Supabase user ID), link the accounts
+          if (result.success && externalId && isValidUUID(externalId)) {
+            await linkTechnogymToSupabase(externalId, result.userId);
+          }
           
           return NextResponse.json({
             success: true,
