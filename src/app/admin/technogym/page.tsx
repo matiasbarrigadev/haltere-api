@@ -1,101 +1,58 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Types based on Technogym client
+interface ConfigStatus {
+  configured: boolean;
+  apiKey: boolean;
+  username: boolean;
+  password: boolean;
+  facilityUrl: boolean;
+  environment: string;
+  baseUrl: string;
+}
+
 interface TechnogymUser {
-  id: string;
+  userId: string;
+  facilityUserId: string;
+  permanentToken?: string;
   firstName: string;
   lastName: string;
   email: string;
-  birthDate?: string;
+}
+
+interface CreateUserResult {
+  userId: string;
+  facilityUserId: string;
+  permanentToken: string;
+  result: 'Created' | 'AlreadyExists';
+}
+
+interface ImportRow {
+  firstName: string;
+  lastName: string;
+  email: string;
+  dateOfBirth?: string;
   gender?: string;
-  membershipNumber?: string;
-  lastActivityDate?: string;
-  registrationDate?: string;
-  status?: string;
 }
 
-interface WorkoutResult {
-  id: string;
-  startDate: string;
-  endDate: string;
-  duration: number;
-  calories: number;
-  distance?: number;
-  avgHeartRate?: number;
-  maxHeartRate?: number;
-  equipmentType?: string;
-  equipmentName?: string;
+interface ImportResult {
+  email: string;
+  status: 'success' | 'error' | 'matched';
+  message: string;
 }
 
-interface BiometricData {
-  date: string;
-  weight?: number;
-  height?: number;
-  bodyFat?: number;
-  muscleMass?: number;
-  bmi?: number;
-  visceralFat?: number;
-  metabolicAge?: number;
-}
-
-interface TrainingProgram {
-  id: string;
-  name: string;
-  description?: string;
-  startDate?: string;
-  endDate?: string;
-  status: string;
-  completionPercentage?: number;
-}
-
-interface UserStats {
-  totalWorkouts: number;
-  totalCalories: number;
-  totalDuration: number;
-  avgWorkoutDuration: number;
-  currentStreak: number;
-  longestStreak: number;
-  lastWorkoutDate?: string;
-  favoriteEquipment?: string;
-}
-
-interface FullUserProfile {
-  user: TechnogymUser;
-  stats: UserStats;
-  biometrics: BiometricData[];
-  programs: TrainingProgram[];
-  recentWorkouts: WorkoutResult[];
-}
-
-// Helper Components
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: string; color: string }) {
-  return (
-    <div style={{
-      backgroundColor: '#111111',
-      borderRadius: '12px',
-      padding: '16px',
-      border: '1px solid #1a1a1a',
-      textAlign: 'center'
-    }}>
-      <div style={{ fontSize: '24px', marginBottom: '8px' }}>{icon}</div>
-      <div style={{ fontSize: '20px', fontWeight: 700, color }}>{value}</div>
-      <div style={{ fontSize: '12px', color: '#666666', marginTop: '4px' }}>{label}</div>
-    </div>
-  );
-}
-
-function BiometricItem({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '20px', marginBottom: '6px' }}>{icon}</div>
-      <div style={{ fontSize: '16px', fontWeight: 600, color: '#ffffff' }}>{value}</div>
-      <div style={{ fontSize: '11px', color: '#666666', marginTop: '2px' }}>{label}</div>
-    </div>
-  );
-}
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '12px 14px',
+  backgroundColor: '#0d0d0d',
+  border: '1px solid #2a2a2a',
+  borderRadius: '8px',
+  color: '#ffffff',
+  fontSize: '14px',
+  outline: 'none',
+};
 
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -105,744 +62,375 @@ const getSupabase = () => {
 };
 
 export default function TechnogymAdminPage() {
-  const [users, setUsers] = useState<TechnogymUser[]>([]);
+  const [configStatus, setConfigStatus] = useState<ConfigStatus | null>(null);
+  const [facilityId, setFacilityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUser, setSelectedUser] = useState<FullUserProfile | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [facilityId, setFacilityId] = useState<string>('');
-  const [total, setTotal] = useState(0);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'create' | 'lookup' | 'import' | 'sync'>('create');
+  
+  const [createForm, setCreateForm] = useState({
+    firstName: '', lastName: '', email: '', dateOfBirth: '', gender: '' as '' | 'M' | 'F', externalId: '',
+    membershipStartOn: new Date().toISOString().split('T')[0],
+    membershipExpiresOn: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  });
+  const [createResult, setCreateResult] = useState<CreateUserResult | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+  
+  const [lookupId, setLookupId] = useState('');
+  const [lookupType, setLookupType] = useState<'externalId' | 'permanentToken'>('externalId');
+  const [lookupResult, setLookupResult] = useState<TechnogymUser | null>(null);
+  const [isLooking, setIsLooking] = useState(false);
 
-  const fetchUsers = useCallback(async (search?: string) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importData, setImportData] = useState<ImportRow[]>([]);
+  const [importResults, setImportResults] = useState<ImportResult[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [webhookUrl, setWebhookUrl] = useState('');
+
+  const getAuthHeaders = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('No session');
+    return { 'Authorization': `Bearer ${session.access_token}` };
+  }, []);
+
+  const fetchStatus = useCallback(async () => {
     setLoading(true);
-    setError(null);
-    
     try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error('Supabase not initialized');
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-      
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      params.append('limit', '100');
-      
-      const response = await fetch(`/api/admin/technogym?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      });
-      
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to fetch');
-      }
-      
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/admin/technogym?action=status', { headers });
       const result = await response.json();
-      setUsers(result.data.users || []);
-      setTotal(result.data.total || 0);
-      setFacilityId(result.data.facilityId || '');
+      setConfigStatus(result.data);
+      if (result.data?.configured) {
+        const testResponse = await fetch('/api/admin/technogym?action=test', { headers });
+        if (testResponse.ok) {
+          const testResult = await testResponse.json();
+          setFacilityId(testResult.data?.facilityId || '');
+        }
+      }
+      setWebhookUrl(`${window.location.origin}/api/technogym/webhook`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error loading data');
+      setError(err instanceof Error ? err.message : 'Error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getAuthHeaders]);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  useEffect(() => { fetchStatus(); }, [fetchStatus]);
 
-  const handleSearch = () => {
-    fetchUsers(searchQuery);
-  };
-
-  const openUserModal = async (userId: string) => {
-    setModalLoading(true);
-    setSelectedUser(null);
-    
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+    setError(null);
+    setCreateResult(null);
     try {
-      const supabase = getSupabase();
-      if (!supabase) throw new Error('Supabase not initialized');
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-      
-      const response = await fetch(`/api/admin/technogym?userId=${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/admin/technogym', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'onboard', ...createForm, gender: createForm.gender || undefined }),
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch user details');
-      
       const result = await response.json();
-      setSelectedUser(result.data);
+      if (!response.ok) throw new Error(result.error);
+      setCreateResult(result.data);
+      setSuccess('Usuario creado en Technogym');
     } catch (err) {
-      console.error('Error fetching user details:', err);
+      setError(err instanceof Error ? err.message : 'Error');
     } finally {
-      setModalLoading(false);
+      setIsCreating(false);
     }
   };
 
-  const closeModal = () => {
-    setSelectedUser(null);
+  const handleLookup = async () => {
+    if (!lookupId.trim()) return;
+    setIsLooking(true);
+    setError(null);
+    setLookupResult(null);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/admin/technogym?${lookupType}=${lookupId}`, { headers });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'User not found');
+      setLookupResult(result.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error');
+    } finally {
+      setIsLooking(false);
+    }
   };
 
-  const formatDuration = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) return;
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const rows: ImportRow[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row: ImportRow = { firstName: '', lastName: '', email: '' };
+        headers.forEach((h, idx) => {
+          const v = values[idx] || '';
+          if (h.includes('first') || h.includes('nombre')) row.firstName = v;
+          else if (h.includes('last') || h.includes('apellido')) row.lastName = v;
+          else if (h.includes('email')) row.email = v;
+          else if (h.includes('birth') || h.includes('date')) row.dateOfBirth = v;
+          else if (h.includes('gender') || h.includes('sexo')) row.gender = v.toUpperCase().startsWith('M') ? 'M' : v.toUpperCase().startsWith('F') ? 'F' : undefined;
+        });
+        if (row.email && row.firstName) rows.push(row);
+      }
+      setImportData(rows);
+      setImportResults([]);
+    };
+    reader.readAsText(file);
   };
 
-  const formatDate = (dateStr: string): string => {
-    return new Date(dateStr).toLocaleDateString('es-CL', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+  const handleImport = async () => {
+    if (importData.length === 0) return;
+    setIsImporting(true);
+    setImportProgress(0);
+    const results: ImportResult[] = [];
+    const headers = await getAuthHeaders();
+    for (let i = 0; i < importData.length; i++) {
+      const row = importData[i];
+      try {
+        const response = await fetch('/api/admin/technogym', {
+          method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create', ...row }),
+        });
+        const result = await response.json();
+        results.push({
+          email: row.email,
+          status: response.ok ? (result.data.result === 'AlreadyExists' ? 'matched' : 'success') : 'error',
+          message: response.ok ? (result.data.result === 'AlreadyExists' ? 'Vinculado' : 'Creado') : result.error,
+        });
+      } catch {
+        results.push({ email: row.email, status: 'error', message: 'Error de conexión' });
+      }
+      setImportProgress(Math.round(((i + 1) / importData.length) * 100));
+      setImportResults([...results]);
+      await new Promise(r => setTimeout(r, 200));
+    }
+    setIsImporting(false);
+    setSuccess(`Importación: ${results.filter(r => r.status !== 'error').length}/${results.length} exitosos`);
   };
 
-  const formatDateTime = (dateStr: string): string => {
-    return new Date(dateStr).toLocaleString('es-CL', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const copyUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setSuccess('URL copiada');
+    setTimeout(() => setSuccess(null), 2000);
   };
+
+  if (loading) return <div style={{ padding: '80px', textAlign: 'center', color: '#666' }}>Cargando...</div>;
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Header */}
+    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
       <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '24px'
-          }}>
-            🏋️
-          </div>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-              Technogym
-            </h1>
-            <p style={{ color: '#888888', fontSize: '14px', margin: 0 }}>
-              Miembros de la facility conectada
-            </p>
-          </div>
-        </div>
-        
-        {facilityId && (
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            backgroundColor: 'rgba(0, 180, 216, 0.1)',
-            borderRadius: '8px',
-            border: '1px solid rgba(0, 180, 216, 0.2)',
-            marginTop: '12px'
-          }}>
-            <span style={{ color: '#00b4d8', fontSize: '12px' }}>●</span>
-            <span style={{ color: '#00b4d8', fontSize: '13px', fontWeight: 500 }}>
-              Facility ID: {facilityId}
-            </span>
-            <span style={{ color: '#666', fontSize: '13px' }}>
-              • {total} miembros registrados
-            </span>
-          </div>
-        )}
+        <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#ffffff', margin: 0 }}>🏋️ Technogym Integration</h1>
+        <p style={{ color: '#888', fontSize: '14px', margin: '8px 0 0' }}>Server-to-Server API (S2S)</p>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
-        <input
-          type="text"
-          placeholder="Buscar por nombre o email..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          style={{
-            flex: 1,
-            maxWidth: '400px',
-            padding: '12px 16px',
-            backgroundColor: '#111111',
-            border: '1px solid #2a2a2a',
-            borderRadius: '10px',
-            color: '#ffffff',
-            fontSize: '14px',
-            outline: 'none'
-          }}
-        />
-        <button
-          onClick={handleSearch}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#00b4d8',
-            border: 'none',
-            borderRadius: '10px',
-            color: '#ffffff',
-            fontSize: '14px',
-            fontWeight: 600,
-            cursor: 'pointer'
-          }}
-        >
-          Buscar
-        </button>
-        <button
-          onClick={() => { setSearchQuery(''); fetchUsers(); }}
-          style={{
-            padding: '12px 16px',
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #2a2a2a',
-            borderRadius: '10px',
-            color: '#888888',
-            fontSize: '14px',
-            cursor: 'pointer'
-          }}
-        >
-          Limpiar
-        </button>
+      {error && <div style={{ padding: '16px', backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', color: '#ef4444', marginBottom: '24px' }}>⚠️ {error}</div>}
+      {success && <div style={{ padding: '16px', backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '12px', color: '#22c55e', marginBottom: '24px' }}>✅ {success}</div>}
+
+      <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a', marginBottom: '24px' }}>
+        <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>⚙️ Configuración</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px' }}>
+            <div style={{ fontSize: '12px', color: '#888' }}>Estado</div>
+            <div style={{ color: configStatus?.configured ? '#22c55e' : '#ef4444', fontWeight: 600 }}>{configStatus?.configured ? '● Conectado' : '○ No configurado'}</div>
+          </div>
+          <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px' }}>
+            <div style={{ fontSize: '12px', color: '#888' }}>Entorno</div>
+            <div style={{ color: '#fff' }}>{configStatus?.environment || '-'}</div>
+          </div>
+          {facilityId && <div style={{ padding: '12px', backgroundColor: '#0d0d0d', borderRadius: '8px' }}>
+            <div style={{ fontSize: '12px', color: '#888' }}>Facility ID</div>
+            <div style={{ color: '#d4af37', fontSize: '11px', wordBreak: 'break-all' }}>{facilityId}</div>
+          </div>}
+        </div>
       </div>
 
-      {/* Error State */}
-      {error && (
-        <div style={{
-          padding: '16px 20px',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '12px',
-          color: '#ef4444',
-          marginBottom: '24px'
-        }}>
-          ⚠️ {error}
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+        {(['create', 'lookup', 'import', 'sync'] as const).map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            padding: '10px 20px', backgroundColor: activeTab === tab ? '#00b4d8' : '#1a1a1a',
+            border: 'none', borderRadius: '8px', color: '#fff', fontSize: '13px', cursor: 'pointer'
+          }}>
+            {tab === 'create' ? '👤 Crear' : tab === 'lookup' ? '🔍 Buscar' : tab === 'import' ? '📥 Importar CSV' : '🔄 Webhooks'}
+          </button>
+        ))}
+      </div>
 
-      {/* Loading State */}
-      {loading ? (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '80px',
-          flexDirection: 'column',
-          gap: '16px'
-        }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid rgba(0, 180, 216, 0.2)',
-            borderTop: '4px solid #00b4d8',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }} />
-          <span style={{ color: '#666666' }}>Cargando miembros de Technogym...</span>
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-      ) : (
-        /* Users Grid */
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-          gap: '16px'
-        }}>
-          {users.map((user) => (
-            <div
-              key={user.id}
-              onClick={() => openUserModal(user.id)}
-              style={{
-                backgroundColor: '#111111',
-                border: '1px solid #1a1a1a',
-                borderRadius: '16px',
-                padding: '20px',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                overflow: 'hidden'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#00b4d8';
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#1a1a1a';
-                e.currentTarget.style.transform = 'translateY(0)';
-              }}
-            >
-              {/* Gradient accent */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: '3px',
-                background: 'linear-gradient(90deg, #00b4d8, #0077b6)'
-              }} />
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '16px',
-                  flexShrink: 0
-                }}>
-                  {user.firstName?.[0]}{user.lastName?.[0]}
-                </div>
-                
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '16px',
-                    fontWeight: 600,
-                    color: '#ffffff',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {user.firstName} {user.lastName}
-                  </h3>
-                  <p style={{
-                    margin: '4px 0 0',
-                    fontSize: '13px',
-                    color: '#888888',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {user.email}
-                  </p>
-                </div>
-                
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#00b4d8',
-                  fontSize: '14px'
-                }}>
-                  →
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
-                {user.membershipNumber && (
-                  <span style={{
-                    padding: '4px 10px',
-                    backgroundColor: 'rgba(212, 175, 55, 0.1)',
-                    borderRadius: '6px',
-                    color: '#d4af37',
-                    fontSize: '11px',
-                    fontWeight: 500
-                  }}>
-                    #{user.membershipNumber}
-                  </span>
-                )}
-                {user.gender && (
-                  <span style={{
-                    padding: '4px 10px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '6px',
-                    color: '#888888',
-                    fontSize: '11px'
-                  }}>
-                    {user.gender === 'M' ? '♂ Masculino' : '♀ Femenino'}
-                  </span>
-                )}
+      {activeTab === 'create' && (
+        <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>Crear Contacto en Mywellness</h2>
+          <p style={{ color: '#888', fontSize: '13px', marginBottom: '20px' }}>
+            Crea un nuevo contacto directamente en Technogym Mywellness. Si incluyes fechas de membresía, se activará como miembro.
+          </p>
+          <form onSubmit={handleCreateUser}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Nombre *</label><input type="text" value={createForm.firstName} onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))} required style={inputStyle} placeholder="Juan" /></div>
+              <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Apellido *</label><input type="text" value={createForm.lastName} onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))} required style={inputStyle} placeholder="Pérez" /></div>
+              <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Email *</label><input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} required style={inputStyle} placeholder="juan@ejemplo.com" /></div>
+              <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>External ID</label><input type="text" value={createForm.externalId} onChange={e => setCreateForm(f => ({ ...f, externalId: e.target.value }))} style={inputStyle} placeholder="UUID de Haltere (opcional)" /></div>
+              <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Fecha Nacimiento</label><input type="date" value={createForm.dateOfBirth} onChange={e => setCreateForm(f => ({ ...f, dateOfBirth: e.target.value }))} style={inputStyle} /></div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Género</label>
+                <select value={createForm.gender} onChange={e => setCreateForm(f => ({ ...f, gender: e.target.value as '' | 'M' | 'F' }))} style={inputStyle}>
+                  <option value="">No especificado</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
+                </select>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!loading && users.length === 0 && !error && (
-        <div style={{ textAlign: 'center', padding: '80px 20px', color: '#666666' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🏋️</div>
-          <p style={{ fontSize: '16px', margin: 0 }}>No se encontraron miembros</p>
-          <p style={{ fontSize: '14px', marginTop: '8px', color: '#555' }}>
-            Intenta con otra búsqueda o verifica la conexión con Technogym
-          </p>
-        </div>
-      )}
-
-      {/* User Detail Modal */}
-      {(selectedUser || modalLoading) && (
-        <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '20px'
-          }}
-          onClick={closeModal}
-        >
-          <div 
-            style={{
-              backgroundColor: '#0d0d0d',
-              borderRadius: '20px',
-              width: '100%',
-              maxWidth: '900px',
-              maxHeight: '90vh',
-              overflow: 'auto',
-              border: '1px solid #1a1a1a'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {modalLoading ? (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '100px',
-                flexDirection: 'column',
-                gap: '16px'
-              }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  border: '4px solid rgba(0, 180, 216, 0.2)',
-                  borderTop: '4px solid #00b4d8',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-                <span style={{ color: '#666666' }}>Cargando datos del usuario...</span>
+            
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#0a0a0a', borderRadius: '10px', border: '1px solid #1a1a1a' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <input 
+                  type="checkbox" 
+                  id="includeMembership"
+                  checked={createForm.membershipStartOn !== '' && createForm.membershipExpiresOn !== ''}
+                  onChange={e => {
+                    if (!e.target.checked) {
+                      setCreateForm(f => ({ ...f, membershipStartOn: '', membershipExpiresOn: '' }));
+                    } else {
+                      setCreateForm(f => ({ 
+                        ...f, 
+                        membershipStartOn: new Date().toISOString().split('T')[0],
+                        membershipExpiresOn: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+                      }));
+                    }
+                  }}
+                  style={{ width: '18px', height: '18px', accentColor: '#00b4d8' }}
+                />
+                <label htmlFor="includeMembership" style={{ color: '#fff', fontSize: '14px', fontWeight: 500 }}>
+                  Incluir membresía (convertir en miembro)
+                </label>
               </div>
-            ) : selectedUser && (
-              <>
-                {/* Modal Header */}
-                <div style={{
-                  padding: '24px',
-                  borderBottom: '1px solid #1a1a1a',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: 'linear-gradient(180deg, rgba(0, 180, 216, 0.05) 0%, transparent 100%)'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '14px',
-                      background: 'linear-gradient(135deg, #00b4d8 0%, #0077b6 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '20px'
-                    }}>
-                      {selectedUser.user.firstName?.[0]}{selectedUser.user.lastName?.[0]}
-                    </div>
-                    <div>
-                      <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#ffffff' }}>
-                        {selectedUser.user.firstName} {selectedUser.user.lastName}
-                      </h2>
-                      <p style={{ margin: '4px 0 0', color: '#888888', fontSize: '14px' }}>
-                        {selectedUser.user.email}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={closeModal}
-                    style={{
-                      width: '40px',
-                      height: '40px',
-                      borderRadius: '10px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                      border: 'none',
-                      color: '#888888',
-                      fontSize: '20px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    ×
-                  </button>
+              
+              {(createForm.membershipStartOn || createForm.membershipExpiresOn) && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '12px' }}>
+                  <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Inicio Membresía</label><input type="date" value={createForm.membershipStartOn} onChange={e => setCreateForm(f => ({ ...f, membershipStartOn: e.target.value }))} style={inputStyle} /></div>
+                  <div><label style={{ display: 'block', fontSize: '12px', color: '#888', marginBottom: '6px' }}>Expiración</label><input type="date" value={createForm.membershipExpiresOn} onChange={e => setCreateForm(f => ({ ...f, membershipExpiresOn: e.target.value }))} style={inputStyle} /></div>
                 </div>
-
-                {/* Stats Cards */}
-                <div style={{ padding: '24px' }}>
-                  <h3 style={{ 
-                    margin: '0 0 16px', 
-                    fontSize: '14px', 
-                    fontWeight: 600, 
-                    color: '#888888',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px'
-                  }}>
-                    📊 Estadísticas de Entrenamiento
-                  </h3>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    gap: '12px'
-                  }}>
-                    <StatCard icon="🏃" label="Workouts" value={selectedUser.stats.totalWorkouts.toString()} color="#00b4d8" />
-                    <StatCard icon="🔥" label="Calorías" value={selectedUser.stats.totalCalories.toLocaleString()} color="#f59e0b" />
-                    <StatCard icon="⏱️" label="Tiempo Total" value={formatDuration(selectedUser.stats.totalDuration)} color="#8b5cf6" />
-                    <StatCard icon="📈" label="Racha Actual" value={`${selectedUser.stats.currentStreak} días`} color="#22c55e" />
-                    <StatCard icon="🏆" label="Mejor Racha" value={`${selectedUser.stats.longestStreak} días`} color="#d4af37" />
-                    <StatCard icon="⚡" label="Promedio/Sesión" value={formatDuration(selectedUser.stats.avgWorkoutDuration)} color="#ec4899" />
-                  </div>
-                  
-                  {selectedUser.stats.favoriteEquipment && (
-                    <div style={{
-                      marginTop: '16px',
-                      padding: '12px 16px',
-                      backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                      borderRadius: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <span style={{ fontSize: '16px' }}>💪</span>
-                      <span style={{ color: '#888888', fontSize: '13px' }}>Equipo favorito:</span>
-                      <span style={{ color: '#00b4d8', fontSize: '14px', fontWeight: 600 }}>
-                        {selectedUser.stats.favoriteEquipment}
-                      </span>
-                    </div>
-                  )}
+              )}
+            </div>
+            
+            <div style={{ marginTop: '20px', display: 'flex', gap: '12px' }}>
+              <button type="submit" disabled={isCreating || !configStatus?.configured} style={{ padding: '12px 24px', backgroundColor: isCreating ? '#333' : '#00b4d8', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: isCreating ? 'not-allowed' : 'pointer' }}>
+                {isCreating ? 'Creando...' : createForm.membershipStartOn ? '➕ Crear Miembro' : '➕ Crear Contacto'}
+              </button>
+            </div>
+          </form>
+          
+          {createResult && (
+            <div style={{ marginTop: '20px', padding: '16px', backgroundColor: 'rgba(34,197,94,0.1)', borderRadius: '10px', border: '1px solid rgba(34,197,94,0.3)' }}>
+              <div style={{ color: '#22c55e', fontWeight: 600, marginBottom: '8px' }}>
+                ✅ {createResult.result === 'Created' ? 'Contacto creado' : 'Contacto ya existía - vinculado'} en Mywellness
+              </div>
+              <div style={{ fontSize: '12px', color: '#888' }}>
+                <div><span style={{ color: '#666' }}>User ID:</span> <code style={{ color: '#00b4d8' }}>{createResult.userId}</code></div>
+                <div><span style={{ color: '#666' }}>Facility User ID:</span> <code style={{ color: '#00b4d8' }}>{createResult.facilityUserId}</code></div>
+                <div style={{ marginTop: '8px', wordBreak: 'break-all' }}>
+                  <span style={{ color: '#666' }}>Permanent Token:</span><br />
+                  <code style={{ color: '#d4af37', fontSize: '10px' }}>{createResult.permanentToken}</code>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-                {/* Biometrics */}
-                {selectedUser.biometrics && selectedUser.biometrics.length > 0 && (
-                  <div style={{ padding: '0 24px 24px' }}>
-                    <h3 style={{ 
-                      margin: '0 0 16px', 
-                      fontSize: '14px', 
-                      fontWeight: 600, 
-                      color: '#888888',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>
-                      ⚖️ Datos Biométricos
-                    </h3>
-                    <div style={{
-                      backgroundColor: '#111111',
-                      borderRadius: '14px',
-                      padding: '20px',
-                      border: '1px solid #1a1a1a'
-                    }}>
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                        gap: '16px'
-                      }}>
-                        {selectedUser.biometrics[0].weight && (
-                          <BiometricItem label="Peso" value={`${selectedUser.biometrics[0].weight} kg`} icon="⚖️" />
-                        )}
-                        {selectedUser.biometrics[0].bodyFat && (
-                          <BiometricItem label="Grasa Corporal" value={`${selectedUser.biometrics[0].bodyFat}%`} icon="📉" />
-                        )}
-                        {selectedUser.biometrics[0].muscleMass && (
-                          <BiometricItem label="Masa Muscular" value={`${selectedUser.biometrics[0].muscleMass} kg`} icon="💪" />
-                        )}
-                        {selectedUser.biometrics[0].bmi && (
-                          <BiometricItem label="IMC" value={selectedUser.biometrics[0].bmi.toFixed(1)} icon="📊" />
-                        )}
-                        {selectedUser.biometrics[0].visceralFat && (
-                          <BiometricItem label="Grasa Visceral" value={selectedUser.biometrics[0].visceralFat.toString()} icon="🫀" />
-                        )}
-                        {selectedUser.biometrics[0].metabolicAge && (
-                          <BiometricItem label="Edad Metabólica" value={`${selectedUser.biometrics[0].metabolicAge} años`} icon="🧬" />
-                        )}
-                      </div>
-                      <div style={{
-                        marginTop: '16px',
-                        paddingTop: '12px',
-                        borderTop: '1px solid #1a1a1a',
-                        color: '#666666',
-                        fontSize: '12px'
-                      }}>
-                        📅 Última medición: {formatDate(selectedUser.biometrics[0].date)}
-                      </div>
-                    </div>
-                  </div>
-                )}
+      {activeTab === 'lookup' && (
+        <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>Buscar Usuario</h2>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <select value={lookupType} onChange={e => setLookupType(e.target.value as typeof lookupType)} style={{ ...inputStyle, maxWidth: '180px' }}>
+              <option value="externalId">External ID</option>
+              <option value="permanentToken">Permanent Token</option>
+            </select>
+            <input type="text" value={lookupId} onChange={e => setLookupId(e.target.value)} placeholder="Buscar..." style={{ ...inputStyle, flex: 1, minWidth: '200px' }} />
+            <button onClick={handleLookup} disabled={isLooking || !lookupId.trim()} style={{ padding: '12px 24px', backgroundColor: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '10px', color: '#fff', cursor: isLooking ? 'not-allowed' : 'pointer' }}>
+              {isLooking ? '...' : 'Buscar'}
+            </button>
+          </div>
+          {lookupResult && <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: '#fff' }}>{lookupResult.firstName} {lookupResult.lastName}</div>
+            <div style={{ color: '#888' }}>{lookupResult.email}</div>
+            <div style={{ marginTop: '8px', fontSize: '12px' }}><code style={{ color: '#00b4d8' }}>{lookupResult.userId}</code></div>
+          </div>}
+        </div>
+      )}
 
-                {/* Active Programs */}
-                {selectedUser.programs && selectedUser.programs.length > 0 && (
-                  <div style={{ padding: '0 24px 24px' }}>
-                    <h3 style={{ 
-                      margin: '0 0 16px', 
-                      fontSize: '14px', 
-                      fontWeight: 600, 
-                      color: '#888888',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>
-                      📋 Programas de Entrenamiento
-                    </h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {selectedUser.programs.map((program) => (
-                        <div
-                          key={program.id}
-                          style={{
-                            backgroundColor: '#111111',
-                            borderRadius: '12px',
-                            padding: '16px',
-                            border: '1px solid #1a1a1a',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                          }}
-                        >
-                          <div>
-                            <h4 style={{ margin: 0, fontSize: '15px', color: '#ffffff', fontWeight: 600 }}>
-                              {program.name}
-                            </h4>
-                            {program.description && (
-                              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#666666' }}>
-                                {program.description}
-                              </p>
-                            )}
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={{
-                              padding: '4px 10px',
-                              backgroundColor: program.status === 'active' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255, 255, 255, 0.05)',
-                              borderRadius: '6px',
-                              color: program.status === 'active' ? '#22c55e' : '#888888',
-                              fontSize: '12px',
-                              fontWeight: 500
-                            }}>
-                              {program.status}
-                            </span>
-                            {program.completionPercentage !== undefined && (
-                              <div style={{
-                                marginTop: '8px',
-                                width: '80px',
-                                height: '4px',
-                                backgroundColor: '#1a1a1a',
-                                borderRadius: '2px',
-                                overflow: 'hidden'
-                              }}>
-                                <div style={{
-                                  width: `${program.completionPercentage}%`,
-                                  height: '100%',
-                                  backgroundColor: '#00b4d8',
-                                  borderRadius: '2px'
-                                }} />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+      {activeTab === 'import' && (
+        <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>📥 Importar desde CSV</h2>
+          <p style={{ color: '#888', fontSize: '13px', marginBottom: '16px' }}>
+            Exporta usuarios desde <a href="https://pro.mywellness.com" target="_blank" rel="noopener noreferrer" style={{ color: '#00b4d8' }}>pro.mywellness.com</a> → Contactos → Exportar XLS/CSV.<br />
+            Columnas requeridas: firstName/nombre, lastName/apellido, email
+          </p>
+          <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx" onChange={handleFileUpload} style={{ display: 'none' }} />
+          <button onClick={() => fileInputRef.current?.click()} style={{ padding: '12px 24px', backgroundColor: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '10px', color: '#fff', cursor: 'pointer' }}>
+            📂 Seleccionar archivo CSV
+          </button>
+          {importData.length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ color: '#888', marginBottom: '12px' }}>{importData.length} usuarios detectados</div>
+              <div style={{ maxHeight: '200px', overflow: 'auto', backgroundColor: '#0d0d0d', borderRadius: '8px', padding: '12px', fontSize: '12px' }}>
+                {importData.slice(0, 10).map((row, i) => <div key={i} style={{ color: '#fff', marginBottom: '4px' }}>{row.firstName} {row.lastName} - {row.email}</div>)}
+                {importData.length > 10 && <div style={{ color: '#666' }}>...y {importData.length - 10} más</div>}
+              </div>
+              <button onClick={handleImport} disabled={isImporting} style={{ marginTop: '16px', padding: '12px 24px', backgroundColor: isImporting ? '#333' : '#00b4d8', border: 'none', borderRadius: '10px', color: '#fff', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
+                {isImporting ? `Importando... ${importProgress}%` : `🚀 Importar ${importData.length} usuarios`}
+              </button>
+            </div>
+          )}
+          {importResults.length > 0 && (
+            <div style={{ marginTop: '20px', maxHeight: '300px', overflow: 'auto' }}>
+              {importResults.map((r, i) => (
+                <div key={i} style={{ padding: '8px 12px', backgroundColor: r.status === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', borderRadius: '6px', marginBottom: '4px', fontSize: '12px', color: r.status === 'error' ? '#ef4444' : '#22c55e' }}>
+                  {r.status === 'success' ? '✅' : r.status === 'matched' ? '🔗' : '❌'} {r.email} - {r.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
-                {/* Recent Workouts */}
-                {selectedUser.recentWorkouts && selectedUser.recentWorkouts.length > 0 && (
-                  <div style={{ padding: '0 24px 24px' }}>
-                    <h3 style={{ 
-                      margin: '0 0 16px', 
-                      fontSize: '14px', 
-                      fontWeight: 600, 
-                      color: '#888888',
-                      textTransform: 'uppercase',
-                      letterSpacing: '1px'
-                    }}>
-                      🏋️ Últimos Entrenamientos
-                    </h3>
-                    <div style={{
-                      backgroundColor: '#111111',
-                      borderRadius: '14px',
-                      border: '1px solid #1a1a1a',
-                      overflow: 'hidden'
-                    }}>
-                      {selectedUser.recentWorkouts.slice(0, 10).map((workout, index) => (
-                        <div
-                          key={workout.id}
-                          style={{
-                            padding: '14px 16px',
-                            borderBottom: index < Math.min(selectedUser.recentWorkouts.length, 10) - 1 ? '1px solid #1a1a1a' : 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div style={{
-                              width: '36px',
-                              height: '36px',
-                              borderRadius: '8px',
-                              backgroundColor: 'rgba(0, 180, 216, 0.1)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '16px'
-                            }}>
-                              {workout.equipmentType?.toLowerCase().includes('tread') ? '🏃' :
-                               workout.equipmentType?.toLowerCase().includes('bike') ? '🚴' :
-                               workout.equipmentType?.toLowerCase().includes('row') ? '🚣' : '🏋️'}
-                            </div>
-                            <div>
-                              <div style={{ fontSize: '14px', color: '#ffffff', fontWeight: 500 }}>
-                                {workout.equipmentName || workout.equipmentType || 'Workout'}
-                              </div>
-                              <div style={{ fontSize: '12px', color: '#666666' }}>
-                                {formatDateTime(workout.startDate)}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '14px', color: '#00b4d8', fontWeight: 600 }}>
-                                {formatDuration(workout.duration)}
-                              </div>
-                              <div style={{ fontSize: '10px', color: '#666666' }}>Duración</div>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                              <div style={{ fontSize: '14px', color: '#f59e0b', fontWeight: 600 }}>
-                                {workout.calories}
-                              </div>
-                              <div style={{ fontSize: '10px', color: '#666666' }}>kcal</div>
-                            </div>
-                            {workout.avgHeartRate && (
-                              <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '14px', color: '#ef4444', fontWeight: 600 }}>
-                                  {workout.avgHeartRate}
-                                </div>
-                                <div style={{ fontSize: '10px', color: '#666666' }}>bpm</div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+      {activeTab === 'sync' && (
+        <div style={{ backgroundColor: '#111', borderRadius: '16px', padding: '24px', border: '1px solid #1a1a1a' }}>
+          <h2 style={{ margin: '0 0 16px', fontSize: '16px', fontWeight: 600, color: '#fff' }}>🔄 Webhooks - Sincronización en Tiempo Real</h2>
+          <p style={{ color: '#888', fontSize: '13px', marginBottom: '16px' }}>
+            Configura este webhook en el portal de Technogym para recibir notificaciones cuando se creen, actualicen o eliminen usuarios.
+            Una vez configurado, la sincronización será automática.
+          </p>
+          <div style={{ padding: '16px', backgroundColor: '#0d0d0d', borderRadius: '10px', marginBottom: '16px' }}>
+            <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>Webhook URL</div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <code style={{ flex: 1, color: '#00b4d8', wordBreak: 'break-all', fontSize: '13px' }}>{webhookUrl}</code>
+              <button onClick={copyUrl} style={{ padding: '8px 16px', backgroundColor: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#fff', cursor: 'pointer', fontSize: '12px' }}>📋 Copiar</button>
+            </div>
+          </div>
+          <div style={{ color: '#888', fontSize: '13px' }}>
+            <strong style={{ color: '#fff' }}>Eventos soportados:</strong>
+            <ul style={{ margin: '8px 0 0', paddingLeft: '20px' }}>
+              <li><code>user.created</code> - Usuario creado en Mywellness</li>
+              <li><code>user.updated</code> - Usuario actualizado</li>
+              <li><code>user.deleted</code> - Usuario eliminado</li>
+            </ul>
+          </div>
+          <div style={{ marginTop: '20px', padding: '12px', backgroundColor: 'rgba(212,175,55,0.1)', borderRadius: '8px', fontSize: '13px', color: '#d4af37' }}>
+            💡 <strong>Proceso recomendado:</strong><br />
+            1. Hacer una importación inicial con CSV desde pro.mywellness.com<br />
+            2. Configurar este webhook en Technogym<br />
+            3. A partir de ahí, los cambios se sincronizan automáticamente
           </div>
         </div>
       )}

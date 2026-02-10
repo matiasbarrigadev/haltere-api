@@ -2,102 +2,156 @@
  * Technogym Mywellness Cloud API Client
  * Server-to-Server Integration
  * Documentation: https://apidocs.mywellness.com
+ * 
+ * IMPORTANT: This client implements the Third Party Server-to-Server integration
+ * according to the official Technogym Postman collection (MANDATORY STEPS + INTERACTION EXAMPLES)
  */
 
-// Environment-based URLs
+// Environment configuration
 const API_BASE_URL = process.env.TECHNOGYM_ENV === 'production' 
   ? 'https://api.mywellness.com'
   : 'https://api-dev.mywellness.com';
 
+// The application ID is fixed for third-party integrations
+const APPLICATION_ID = '69295ed5-a53c-434b-8518-f2e0b5f05b28';
+
 // Credentials from environment
-const API_KEY = process.env.TECHNOGYM_API_KEY!;
-const USERNAME = process.env.TECHNOGYM_USERNAME!;
-const PASSWORD = process.env.TECHNOGYM_PASSWORD!;
-const FACILITY_URL = process.env.TECHNOGYM_FACILITY_URL!;
+const API_KEY = process.env.TECHNOGYM_API_KEY || '';
+const USERNAME = process.env.TECHNOGYM_USERNAME || '';
+const PASSWORD = process.env.TECHNOGYM_PASSWORD || '';
+const FACILITY_URL = process.env.TECHNOGYM_FACILITY_URL || '';
 
 // Token cache
-let accessToken: string | null = null;
+let sessionToken: string | null = null;
 let tokenExpiry: Date | null = null;
 let facilityId: string | null = null;
 
-// Types
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export interface TechnogymAuthResponse {
+  data: {
+    facilities: Array<{
+      id: string;
+      url: string;
+      name: string;
+      companyName: string;
+      logoUrl: string;
+      isDemo: boolean;
+    }>;
+    accountConfirmed: boolean;
+    userContext: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+    result: string;
+    credentialId: string;
+  };
+  token: string;
+  expireIn: number;
+}
+
+export interface CreateUserResponse {
+  data: {
+    result: 'Created' | 'AlreadyExists';
+    userId: string;
+    facilityUserId: string;
+    permanentToken: string;
+  };
+  token: string;
+}
+
+export interface GetUserResponse {
+  data: {
+    userId: string;
+    facilityUserId: string;
+    firstName: string;
+    lastName: string;
+    nickName?: string;
+    email: string;
+    birthDate?: string;
+    gender?: string;
+    notes?: string;
+    address1?: string;
+    city?: string;
+    zipCode?: string;
+    phoneNumber?: string;
+    mobilePhoneNumber?: string;
+    levelOfInterest?: string;
+    measurementSystem?: string;
+    externalId?: string;
+    createdOn?: string;
+    modifiedOn?: string;
+  };
+  token: string;
+}
+
+export interface SaveMembershipResponse {
+  data: {
+    result: 'Success' | 'Error';
+  };
+  token: string;
+}
+
+export interface VisitResponse {
+  data: {
+    result: 'Success' | 'Error';
+  };
+  token: string;
+}
+
 export interface TechnogymUser {
-  id: string;
+  userId: string;
+  facilityUserId: string;
+  permanentToken?: string;
   firstName: string;
   lastName: string;
   email: string;
   birthDate?: string;
   gender?: string;
-  membershipNumber?: string;
-  customerLogicalId?: string;
+  externalId?: string;
+  notes?: string;
+  createdOn?: string;
 }
 
-export interface WorkoutResult {
-  id: string;
-  startDate: string;
-  endDate: string;
-  duration: number; // seconds
-  calories: number;
-  distance?: number; // meters
-  avgHeartRate?: number;
-  maxHeartRate?: number;
-  equipmentType?: string;
-  equipmentName?: string;
-}
+export type MembershipOperation = 
+  | 'Subscribe' 
+  | 'Renew' 
+  | 'UnSubscribe' 
+  | 'Update' 
+  | 'Froze' 
+  | 'UnFroze';
 
-export interface BiometricData {
-  date: string;
-  weight?: number; // kg
-  height?: number; // cm
-  bodyFat?: number; // percentage
-  muscleMass?: number; // kg
-  bmi?: number;
-  visceralFat?: number;
-  metabolicAge?: number;
-}
-
-export interface TrainingProgram {
-  id: string;
-  name: string;
-  description?: string;
-  startDate?: string;
-  endDate?: string;
-  status: string;
-  completionPercentage?: number;
-}
-
-export interface UserStats {
-  totalWorkouts: number;
-  totalCalories: number;
-  totalDuration: number; // seconds
-  avgWorkoutDuration: number;
-  currentStreak: number;
-  longestStreak: number;
-  lastWorkoutDate?: string;
-  favoriteEquipment?: string;
-}
+// =============================================================================
+// AUTHENTICATION
+// =============================================================================
 
 /**
- * Authenticate and get access token
+ * Authenticate with Technogym API and get session token
  * Documentation: https://apidocs.mywellness.com/#d8b453a6-b0db-4e29-9a55-44dbd79ac183
  */
-async function authenticate(): Promise<string> {
-  // Check if we have a valid cached token
-  if (accessToken && tokenExpiry && new Date() < tokenExpiry) {
-    return accessToken;
+export async function authenticate(): Promise<{ token: string; facilityId: string }> {
+  // Check cached token (expires in 30 min, refresh at 25 min)
+  if (sessionToken && tokenExpiry && facilityId && new Date() < tokenExpiry) {
+    return { token: sessionToken, facilityId };
   }
 
-  // The application ID in the URL is the API_KEY itself
-  const url = `${API_BASE_URL}/${FACILITY_URL}/application/${API_KEY}/accessintegration`;
+  const url = `${API_BASE_URL}/${FACILITY_URL}/application/${APPLICATION_ID}/AccessIntegration`;
   
-  console.log('[Technogym] Authenticating with URL:', url);
+  console.log('[Technogym] Authenticating...', { url, env: process.env.TECHNOGYM_ENV });
   
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
+      'X-MWAPPS-CLIENT': 'thirdParties',
+      'X-MWAPPS-APIKEY': API_KEY,
     },
     body: JSON.stringify({
+      apiKey: API_KEY,
       username: USERNAME,
       password: PASSWORD,
     }),
@@ -106,415 +160,659 @@ async function authenticate(): Promise<string> {
   if (!response.ok) {
     const error = await response.text();
     console.error('[Technogym] Auth failed:', error);
-    throw new Error(`Technogym authentication failed: ${error}`);
+    throw new Error(`Technogym authentication failed: ${response.status} ${error}`);
   }
 
-  const data = await response.json();
+  const data: TechnogymAuthResponse = await response.json();
   
-  console.log('[Technogym] Auth response:', JSON.stringify(data, null, 2));
-  
-  accessToken = data.data?.accessToken || data.accessToken;
-  facilityId = data.data?.facilities?.[0]?.id || data.facilities?.[0]?.id;
-  
-  // Token valid for 30 minutes, refresh at 25 minutes
-  tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
-  
-  if (!accessToken) {
-    throw new Error('Technogym authentication failed: No access token in response');
+  if (!data.token) {
+    throw new Error('Technogym authentication failed: No token in response');
   }
   
-  return accessToken;
+  if (!data.data?.facilities?.[0]?.id) {
+    throw new Error('Technogym authentication failed: No facility found');
+  }
+
+  sessionToken = data.token;
+  facilityId = data.data.facilities[0].id;
+  // Token expires in 30 min, refresh at 25 min to be safe
+  tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
+  
+  console.log('[Technogym] Auth successful:', {
+    facilityId,
+    facilityName: data.data.facilities[0].name,
+    expiresIn: data.expireIn,
+  });
+  
+  return { token: sessionToken, facilityId };
 }
 
 /**
  * Make authenticated API request
+ * Each request includes the token in the body and receives a new token in response
  */
-async function apiRequest<T>(
+async function apiRequest<T extends { token?: string }>(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
-  body?: object
+  body: Record<string, unknown> = {},
+  method: 'GET' | 'POST' = 'POST'
 ): Promise<T> {
-  const token = await authenticate();
+  const { token, facilityId: fId } = await authenticate();
   
-  const url = `${API_BASE_URL}/${FACILITY_URL}${endpoint}`;
+  // Replace {facilityId} placeholder in endpoint
+  const resolvedEndpoint = endpoint.replace('{facilityId}', fId);
+  const url = `${API_BASE_URL}/${FACILITY_URL}${resolvedEndpoint}`;
+  
+  // Include token in request body
+  const requestBody = { ...body, token };
+  
+  console.log('[Technogym] API Request:', { method, url, body: { ...requestBody, token: '***' } });
   
   const response = await fetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      'X-MWAPPS-CLIENT': 'thirdParties',
+      'X-MWAPPS-APIKEY': API_KEY,
     },
-    body: body ? JSON.stringify(body) : undefined,
+    body: JSON.stringify(requestBody),
   });
 
-  // Handle token expiration
-  if (response.status === 401) {
-    accessToken = null;
-    tokenExpiry = null;
-    return apiRequest(endpoint, method, body);
+  const responseData = await response.json() as T & { errors?: Array<{ message: string }> };
+  
+  // Update session token if a new one was returned
+  if (responseData.token) {
+    sessionToken = responseData.token;
+    tokenExpiry = new Date(Date.now() + 25 * 60 * 1000);
+  }
+
+  // Check for errors in response
+  if (responseData.errors && responseData.errors.length > 0) {
+    const errorMsg = responseData.errors.map((e: { message: string }) => e.message).join(', ');
+    console.error('[Technogym] API Error:', errorMsg);
+    throw new Error(`Technogym API error: ${errorMsg}`);
   }
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Technogym API error: ${error}`);
+    throw new Error(`Technogym API error: ${response.status}`);
   }
 
-  return response.json();
+  return responseData;
 }
 
-// ============================================
-// CORE LAYER - User Management
-// ============================================
+// =============================================================================
+// USER MANAGEMENT (CORE LAYER)
+// =============================================================================
 
 /**
- * Create a new user in Technogym
+ * Create a new user in Technogym facility
+ * Endpoint: POST /core/facility/{facilityId}/CreateFacilityUserFromThirdParty
  */
 export async function createUser(userData: {
-  email: string;
   firstName: string;
   lastName: string;
-  birthDate?: string;
+  email: string;
+  dateOfBirth?: string; // Format: YYYY-MM-DD
   gender?: 'M' | 'F';
-  customerLogicalId?: string;
-}): Promise<TechnogymUser> {
-  const response = await apiRequest<{ data: TechnogymUser }>(
-    `/core/facility/${facilityId}/facilityuser`,
-    'POST',
+  externalId?: string; // Your internal user ID
+}): Promise<{
+  userId: string;
+  facilityUserId: string;
+  permanentToken: string;
+  result: 'Created' | 'AlreadyExists';
+}> {
+  const response = await apiRequest<CreateUserResponse>(
+    '/core/facility/{facilityId}/CreateFacilityUserFromThirdParty',
     {
-      email: userData.email,
       firstName: userData.firstName,
       lastName: userData.lastName,
-      birthDate: userData.birthDate,
+      email: userData.email,
+      dateOfBirth: userData.dateOfBirth,
       gender: userData.gender,
-      customerLogicalId: userData.customerLogicalId,
+      externalId: userData.externalId,
     }
   );
-  return response.data;
+
+  console.log('[Technogym] User created:', {
+    userId: response.data.userId,
+    facilityUserId: response.data.facilityUserId,
+    result: response.data.result,
+  });
+
+  return {
+    userId: response.data.userId,
+    facilityUserId: response.data.facilityUserId,
+    permanentToken: response.data.permanentToken,
+    result: response.data.result,
+  };
 }
 
 /**
- * Get user by Technogym ID
+ * Get user by permanent token
+ * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserFromPermanentToken
  */
-export async function getUser(userId: string): Promise<TechnogymUser> {
-  const response = await apiRequest<{ data: TechnogymUser }>(
-    `/core/facilityuser/${userId}`
+export async function getUserByPermanentToken(permanentToken: string): Promise<TechnogymUser> {
+  const response = await apiRequest<GetUserResponse>(
+    '/core/facility/{facilityId}/GetFacilityUserFromPermanentToken',
+    { permanentToken }
   );
-  return response.data;
+
+  return {
+    userId: response.data.userId,
+    facilityUserId: response.data.facilityUserId,
+    permanentToken,
+    firstName: response.data.firstName,
+    lastName: response.data.lastName,
+    email: response.data.email,
+    birthDate: response.data.birthDate,
+    gender: response.data.gender,
+    externalId: response.data.externalId,
+    notes: response.data.notes,
+    createdOn: response.data.createdOn,
+  };
 }
 
 /**
- * Find user by email
+ * Get user by external ID (your internal user ID)
+ * Endpoint: POST /core/facility/{facilityId}/GetFacilityUserFromExternalId
  */
-export async function findUserByEmail(email: string): Promise<TechnogymUser | null> {
+export async function getUserByExternalId(externalId: string): Promise<TechnogymUser | null> {
   try {
-    const response = await apiRequest<{ data: { items: TechnogymUser[] } }>(
-      `/core/facility/${facilityId}/facilityusers?email=${encodeURIComponent(email)}`
+    const response = await apiRequest<GetUserResponse>(
+      '/core/facility/{facilityId}/GetFacilityUserFromExternalId',
+      { externalId }
     );
-    return response.data.items?.[0] || null;
-  } catch {
+
+    return {
+      userId: response.data.userId,
+      facilityUserId: response.data.facilityUserId,
+      firstName: response.data.firstName,
+      lastName: response.data.lastName,
+      email: response.data.email,
+      birthDate: response.data.birthDate,
+      gender: response.data.gender,
+      externalId: response.data.externalId,
+    };
+  } catch (error) {
+    console.log('[Technogym] User not found by externalId:', externalId);
     return null;
   }
 }
 
 /**
- * Update user data
+ * Update user information
+ * Endpoint: POST /core/facilityuser/{facilityUserId}/Update
  */
 export async function updateUser(
-  userId: string,
-  userData: Partial<{
-    firstName: string;
-    lastName: string;
-    birthDate: string;
-    gender: 'M' | 'F';
-  }>
-): Promise<TechnogymUser> {
-  const response = await apiRequest<{ data: TechnogymUser }>(
-    `/core/facilityuser/${userId}/update`,
-    'PUT',
+  facilityUserId: string,
+  userData: {
+    firstName?: string;
+    lastName?: string;
+    nickName?: string;
+    birthDate?: string;
+    gender?: 'M' | 'F';
+    notes?: string;
+    levelOfInterest?: 'NotInterested' | 'Interested' | 'VeryInterested';
+    address1?: string;
+    zipCode?: string;
+    city?: string;
+    phoneNumber?: string;
+    mobilePhoneNumber?: string;
+    stateProvince?: string;
+    measurementSystem?: 'Metric' | 'Imperial';
+  }
+): Promise<void> {
+  await apiRequest(
+    `/core/facilityuser/${facilityUserId}/Update`,
     userData
   );
-  return response.data;
-}
-
-// ============================================
-// RESULTS LAYER - Workout History
-// ============================================
-
-/**
- * Get user's workout results
- */
-export async function getWorkoutResults(
-  userId: string,
-  options?: {
-    from?: string; // ISO date
-    to?: string;
-    limit?: number;
-    offset?: number;
-  }
-): Promise<WorkoutResult[]> {
-  let endpoint = `/results/facilityuser/${userId}/workouts`;
-  
-  const params = new URLSearchParams();
-  if (options?.from) params.append('from', options.from);
-  if (options?.to) params.append('to', options.to);
-  if (options?.limit) params.append('limit', options.limit.toString());
-  if (options?.offset) params.append('offset', options.offset.toString());
-  
-  const queryString = params.toString();
-  if (queryString) endpoint += `?${queryString}`;
-  
-  const response = await apiRequest<{ data: { items: WorkoutResult[] } }>(endpoint);
-  return response.data.items || [];
+  console.log('[Technogym] User updated:', facilityUserId);
 }
 
 /**
- * Get single workout details
+ * Delete user from facility
+ * Endpoint: POST /core/facilityuser/{facilityUserId}/Delete
  */
-export async function getWorkoutDetail(
-  userId: string,
-  workoutId: string
-): Promise<WorkoutResult> {
-  const response = await apiRequest<{ data: WorkoutResult }>(
-    `/results/facilityuser/${userId}/workout/${workoutId}`
-  );
-  return response.data;
-}
-
-// ============================================
-// BIOMETRICS LAYER - Body Measurements
-// ============================================
-
-/**
- * Get user's biometric data history
- */
-export async function getBiometrics(
-  userId: string,
-  options?: {
-    from?: string;
-    to?: string;
-  }
-): Promise<BiometricData[]> {
-  let endpoint = `/biometrics/facilityuser/${userId}/measurements`;
-  
-  const params = new URLSearchParams();
-  if (options?.from) params.append('from', options.from);
-  if (options?.to) params.append('to', options.to);
-  
-  const queryString = params.toString();
-  if (queryString) endpoint += `?${queryString}`;
-  
-  const response = await apiRequest<{ data: { items: BiometricData[] } }>(endpoint);
-  return response.data.items || [];
+export async function deleteUser(facilityUserId: string): Promise<void> {
+  await apiRequest(`/core/facilityuser/${facilityUserId}/Delete`, {});
+  console.log('[Technogym] User deleted:', facilityUserId);
 }
 
 /**
- * Get latest biometric data
+ * Get detailed user information
+ * Endpoint: POST /core/facilityuser/{facilityUserId}/details
+ * 
+ * Returns comprehensive user data including profile, membership status, etc.
  */
-export async function getLatestBiometrics(userId: string): Promise<BiometricData | null> {
-  const biometrics = await getBiometrics(userId, {
-    from: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-  });
-  return biometrics[0] || null;
-}
-
-// ============================================
-// TRAINING PROGRAMS LAYER
-// ============================================
-
-/**
- * Get user's training programs
- */
-export async function getTrainingPrograms(
-  userId: string
-): Promise<TrainingProgram[]> {
-  const response = await apiRequest<{ data: { items: TrainingProgram[] } }>(
-    `/trainingprogram/facilityuser/${userId}/programs`
-  );
-  return response.data.items || [];
-}
-
-/**
- * Get active training program
- */
-export async function getActiveProgram(userId: string): Promise<TrainingProgram | null> {
-  const programs = await getTrainingPrograms(userId);
-  return programs.find(p => p.status === 'active') || null;
-}
-
-// ============================================
-// AGGREGATED STATS
-// ============================================
-
-/**
- * Calculate user statistics from workout history
- */
-export async function calculateUserStats(userId: string): Promise<UserStats> {
-  // Get last year's workouts
-  const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-  const workouts = await getWorkoutResults(userId, { from: oneYearAgo, limit: 1000 });
-  
-  if (workouts.length === 0) {
-    return {
-      totalWorkouts: 0,
-      totalCalories: 0,
-      totalDuration: 0,
-      avgWorkoutDuration: 0,
-      currentStreak: 0,
-      longestStreak: 0,
+export async function getUserDetails(facilityUserId: string): Promise<{
+  userId: string;
+  facilityUserId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  nickName?: string;
+  birthDate?: string;
+  gender?: string;
+  notes?: string;
+  address1?: string;
+  city?: string;
+  zipCode?: string;
+  phoneNumber?: string;
+  mobilePhoneNumber?: string;
+  levelOfInterest?: string;
+  measurementSystem?: string;
+  externalId?: string;
+  createdOn?: string;
+  modifiedOn?: string;
+  membershipStatus?: {
+    memberSince?: string;
+    startOn?: string;
+    expiresOn?: string;
+    isFrozen?: boolean;
+  };
+}> {
+  interface DetailsResponse {
+    data: {
+      userId: string;
+      facilityUserId: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      nickName?: string;
+      birthDate?: string;
+      gender?: string;
+      notes?: string;
+      address1?: string;
+      city?: string;
+      zipCode?: string;
+      phoneNumber?: string;
+      mobilePhoneNumber?: string;
+      levelOfInterest?: string;
+      measurementSystem?: string;
+      externalId?: string;
+      createdOn?: string;
+      modifiedOn?: string;
+      memberSince?: string;
+      startOn?: string;
+      expiresOn?: string;
+      isFrozen?: boolean;
     };
+    token: string;
   }
 
-  // Calculate totals
-  const totalWorkouts = workouts.length;
-  const totalCalories = workouts.reduce((sum, w) => sum + (w.calories || 0), 0);
-  const totalDuration = workouts.reduce((sum, w) => sum + (w.duration || 0), 0);
-  const avgWorkoutDuration = Math.round(totalDuration / totalWorkouts);
-
-  // Sort by date for streak calculation
-  const sortedWorkouts = [...workouts].sort(
-    (a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime()
+  const response = await apiRequest<DetailsResponse>(
+    `/core/facilityuser/${facilityUserId}/details`,
+    {}
   );
 
-  // Calculate streaks (days with at least one workout)
-  const workoutDates = new Set(
-    sortedWorkouts.map(w => new Date(w.startDate).toDateString())
+  return {
+    userId: response.data.userId,
+    facilityUserId: response.data.facilityUserId,
+    firstName: response.data.firstName,
+    lastName: response.data.lastName,
+    email: response.data.email,
+    nickName: response.data.nickName,
+    birthDate: response.data.birthDate,
+    gender: response.data.gender,
+    notes: response.data.notes,
+    address1: response.data.address1,
+    city: response.data.city,
+    zipCode: response.data.zipCode,
+    phoneNumber: response.data.phoneNumber,
+    mobilePhoneNumber: response.data.mobilePhoneNumber,
+    levelOfInterest: response.data.levelOfInterest,
+    measurementSystem: response.data.measurementSystem,
+    externalId: response.data.externalId,
+    createdOn: response.data.createdOn,
+    modifiedOn: response.data.modifiedOn,
+    membershipStatus: response.data.memberSince ? {
+      memberSince: response.data.memberSince,
+      startOn: response.data.startOn,
+      expiresOn: response.data.expiresOn,
+      isFrozen: response.data.isFrozen,
+    } : undefined,
+  };
+}
+
+/**
+ * Match/Find user by basic data
+ * Uses CreateFacilityUserFromThirdParty - if user exists with same data, returns existing user
+ * This is useful for initial sync or finding users without knowing their IDs
+ * 
+ * @returns User data with result 'AlreadyExists' if matched, 'Created' if new
+ */
+export async function matchUserByData(userData: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  dateOfBirth?: string;
+  gender?: 'M' | 'F';
+}): Promise<{
+  userId: string;
+  facilityUserId: string;
+  permanentToken: string;
+  wasMatched: boolean;
+}> {
+  const result = await createUser(userData);
+  
+  return {
+    userId: result.userId,
+    facilityUserId: result.facilityUserId,
+    permanentToken: result.permanentToken,
+    wasMatched: result.result === 'AlreadyExists',
+  };
+}
+
+// =============================================================================
+// MEMBERSHIP MANAGEMENT
+// =============================================================================
+
+/**
+ * Save/Update user membership
+ * Endpoint: POST /core/facilityuser/{facilityUserId}/SaveMembership
+ * 
+ * Operations:
+ * - Subscribe: New subscription
+ * - Renew: Renew existing subscription
+ * - UnSubscribe: Cancel subscription
+ * - Update: Update subscription details
+ * - Froze: Freeze subscription
+ * - UnFroze: Unfreeze subscription
+ */
+export async function saveMembership(
+  facilityUserId: string,
+  membership: {
+    operation: MembershipOperation;
+    memberSince?: string; // Format: YYYY-MM-DD
+    startOn?: string;
+    expiresOn?: string;
+    description?: string;
+  }
+): Promise<void> {
+  const response = await apiRequest<SaveMembershipResponse>(
+    `/core/facilityuser/${facilityUserId}/SaveMembership`,
+    membership
   );
   
-  let currentStreak = 0;
-  let longestStreak = 0;
-  let tempStreak = 0;
-  
-  const today = new Date();
-  for (let i = 0; i < 365; i++) {
-    const checkDate = new Date(today);
-    checkDate.setDate(today.getDate() - i);
-    
-    if (workoutDates.has(checkDate.toDateString())) {
-      tempStreak++;
-      if (i < 2 || currentStreak > 0) {
-        currentStreak = tempStreak;
-      }
-    } else {
-      if (tempStreak > longestStreak) {
-        longestStreak = tempStreak;
-      }
-      if (i > 1) {
-        tempStreak = 0;
-      }
-    }
+  if (response.data.result !== 'Success') {
+    throw new Error(`Failed to save membership: ${response.data.result}`);
   }
-  longestStreak = Math.max(longestStreak, tempStreak);
+  
+  console.log('[Technogym] Membership saved:', { facilityUserId, operation: membership.operation });
+}
 
-  // Find favorite equipment
-  const equipmentCount: Record<string, number> = {};
-  for (const w of workouts) {
-    if (w.equipmentType) {
-      equipmentCount[w.equipmentType] = (equipmentCount[w.equipmentType] || 0) + 1;
-    }
+/**
+ * Subscribe user (convenience wrapper for saveMembership)
+ */
+export async function subscribeUser(
+  facilityUserId: string,
+  options: {
+    startOn: string;
+    expiresOn: string;
+    description?: string;
+    memberSince?: string;
   }
-  const favoriteEquipment = Object.entries(equipmentCount)
-    .sort((a, b) => b[1] - a[1])[0]?.[0];
-
-  return {
-    totalWorkouts,
-    totalCalories,
-    totalDuration,
-    avgWorkoutDuration,
-    currentStreak,
-    longestStreak,
-    lastWorkoutDate: sortedWorkouts[0]?.startDate,
-    favoriteEquipment,
-  };
+): Promise<void> {
+  await saveMembership(facilityUserId, {
+    operation: 'Subscribe',
+    memberSince: options.memberSince || options.startOn,
+    startOn: options.startOn,
+    expiresOn: options.expiresOn,
+    description: options.description,
+  });
 }
 
 /**
- * Get comprehensive user fitness profile
+ * Unsubscribe user (convenience wrapper for saveMembership)
  */
-export async function getUserFitnessProfile(userId: string) {
-  const [stats, biometrics, activeProgram] = await Promise.all([
-    calculateUserStats(userId),
-    getLatestBiometrics(userId),
-    getActiveProgram(userId),
-  ]);
-
-  return {
-    stats,
-    biometrics,
-    activeProgram,
-  };
-}
-
-// ============================================
-// FACILITY MANAGEMENT (Admin)
-// ============================================
-
-export interface FacilityUser extends TechnogymUser {
-  lastActivityDate?: string;
-  registrationDate?: string;
-  status?: string;
+export async function unsubscribeUser(
+  facilityUserId: string,
+  expiresOn: string,
+  description?: string
+): Promise<void> {
+  await saveMembership(facilityUserId, {
+    operation: 'UnSubscribe',
+    expiresOn,
+    description,
+  });
 }
 
 /**
- * Get all users from the facility (for admin dashboard)
+ * Renew user subscription (convenience wrapper for saveMembership)
  */
-export async function getFacilityUsers(options?: {
-  limit?: number;
-  offset?: number;
-  search?: string;
-}): Promise<{ users: FacilityUser[]; total: number }> {
-  await authenticate(); // Ensure we have facilityId
-  
-  let endpoint = `/core/facility/${facilityId}/facilityusers`;
-  
-  const params = new URLSearchParams();
-  if (options?.limit) params.append('limit', options.limit.toString());
-  if (options?.offset) params.append('offset', options.offset.toString());
-  if (options?.search) params.append('search', options.search);
-  
-  const queryString = params.toString();
-  if (queryString) endpoint += `?${queryString}`;
-  
-  const response = await apiRequest<{ 
-    data: { 
-      items: FacilityUser[];
-      totalCount?: number;
-    } 
-  }>(endpoint);
-  
-  return {
-    users: response.data.items || [],
-    total: response.data.totalCount || response.data.items?.length || 0
-  };
+export async function renewMembership(
+  facilityUserId: string,
+  options: {
+    startOn: string;
+    expiresOn: string;
+    description?: string;
+  }
+): Promise<void> {
+  await saveMembership(facilityUserId, {
+    operation: 'Renew',
+    startOn: options.startOn,
+    expiresOn: options.expiresOn,
+    description: options.description,
+  });
 }
 
+// =============================================================================
+// VISIT TRACKING
+// =============================================================================
+
 /**
- * Get current facility ID
+ * Register a visit to the facility
+ * Endpoint: POST /core/user/{userId}/Visit
+ */
+export async function registerVisit(
+  userId: string,
+  visitDate?: string // Format: YYYY-MM-DD HH:mm:ss +HH:00
+): Promise<void> {
+  const date = visitDate || new Date().toISOString().replace('T', ' ').replace('Z', ' +00:00');
+  
+  const response = await apiRequest<VisitResponse>(
+    `/core/user/${userId}/Visit`,
+    { visitDate: date }
+  );
+  
+  if (response.data.result !== 'Success') {
+    throw new Error(`Failed to register visit: ${response.data.result}`);
+  }
+  
+  console.log('[Technogym] Visit registered:', { userId, date });
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Get current facility ID (authenticates if needed)
  */
 export async function getFacilityId(): Promise<string> {
-  await authenticate();
-  return facilityId!;
+  const { facilityId: fId } = await authenticate();
+  return fId;
 }
 
 /**
- * Get comprehensive user data for admin view
+ * Check if configuration is complete
  */
-export async function getFullUserProfile(userId: string) {
-  const [user, stats, biometrics, programs, recentWorkouts] = await Promise.all([
-    getUser(userId),
-    calculateUserStats(userId),
-    getBiometrics(userId, {
-      from: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
-    }),
-    getTrainingPrograms(userId),
-    getWorkoutResults(userId, { limit: 20 })
-  ]);
+export function isConfigured(): boolean {
+  return !!(API_KEY && USERNAME && PASSWORD && FACILITY_URL);
+}
 
+/**
+ * Get configuration status (for debugging)
+ */
+export function getConfigStatus(): {
+  apiKey: boolean;
+  username: boolean;
+  password: boolean;
+  facilityUrl: boolean;
+  environment: string;
+  baseUrl: string;
+} {
   return {
-    user,
-    stats,
-    biometrics,
-    programs,
-    recentWorkouts
+    apiKey: !!API_KEY,
+    username: !!USERNAME,
+    password: !!PASSWORD,
+    facilityUrl: !!FACILITY_URL,
+    environment: process.env.TECHNOGYM_ENV || 'development',
+    baseUrl: API_BASE_URL,
   };
 }
 
+/**
+ * Clear cached token (for testing/debugging)
+ */
+export function clearTokenCache(): void {
+  sessionToken = null;
+  tokenExpiry = null;
+  facilityId = null;
+  console.log('[Technogym] Token cache cleared');
+}
+
+// =============================================================================
+// FULL WORKFLOW HELPERS
+// =============================================================================
+
+/**
+ * Complete workflow: Create user, update details, and subscribe
+ * This is the recommended flow for onboarding a new member
+ */
+export async function onboardNewMember(memberData: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  dateOfBirth?: string;
+  gender?: 'M' | 'F';
+  externalId: string; // Your Haltere user ID
+  membershipStartOn: string;
+  membershipExpiresOn: string;
+  membershipDescription?: string;
+  // Optional additional info
+  address?: string;
+  city?: string;
+  zipCode?: string;
+  phone?: string;
+  mobilePhone?: string;
+  notes?: string;
+}): Promise<{
+  userId: string;
+  facilityUserId: string;
+  permanentToken: string;
+}> {
+  // Step 1: Create user
+  const createResult = await createUser({
+    firstName: memberData.firstName,
+    lastName: memberData.lastName,
+    email: memberData.email,
+    dateOfBirth: memberData.dateOfBirth,
+    gender: memberData.gender,
+    externalId: memberData.externalId,
+  });
+
+  // Step 2: Update with additional info if provided
+  const hasAdditionalInfo = memberData.address || memberData.city || memberData.phone || memberData.notes;
+  if (hasAdditionalInfo) {
+    await updateUser(createResult.facilityUserId, {
+      address1: memberData.address,
+      city: memberData.city,
+      zipCode: memberData.zipCode,
+      phoneNumber: memberData.phone,
+      mobilePhoneNumber: memberData.mobilePhone,
+      notes: memberData.notes,
+    });
+  }
+
+  // Step 3: Subscribe to membership
+  await subscribeUser(createResult.facilityUserId, {
+    startOn: memberData.membershipStartOn,
+    expiresOn: memberData.membershipExpiresOn,
+    description: memberData.membershipDescription || 'Club Haltere Membership',
+    memberSince: memberData.membershipStartOn,
+  });
+
+  console.log('[Technogym] Member onboarded successfully:', {
+    userId: createResult.userId,
+    facilityUserId: createResult.facilityUserId,
+    email: memberData.email,
+  });
+
+  return {
+    userId: createResult.userId,
+    facilityUserId: createResult.facilityUserId,
+    permanentToken: createResult.permanentToken,
+  };
+}
+
+/**
+ * Sync member status: Update membership when Haltere membership changes
+ */
+export async function syncMemberStatus(
+  facilityUserId: string,
+  status: 'active' | 'expired' | 'frozen' | 'renewed',
+  membershipExpiresOn: string,
+  description?: string
+): Promise<void> {
+  const operationMap: Record<string, MembershipOperation> = {
+    active: 'Subscribe',
+    expired: 'UnSubscribe',
+    frozen: 'Froze',
+    renewed: 'Renew',
+  };
+
+  await saveMembership(facilityUserId, {
+    operation: operationMap[status],
+    expiresOn: membershipExpiresOn,
+    description: description || `Status changed to ${status}`,
+  });
+}
+
+// =============================================================================
+// LEGACY COMPATIBILITY - Deprecated functions
+// These exist for backward compatibility but use the new implementation
+// =============================================================================
+
+/** @deprecated Use createUser instead */
+export async function findUserByEmail(email: string): Promise<TechnogymUser | null> {
+  console.warn('[Technogym] findUserByEmail is deprecated. Use createUser with externalId for user lookup.');
+  // The new API doesn't support finding by email directly
+  // Users should use externalId (Haltere user ID) for lookups
+  return null;
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function getWorkoutResults(): Promise<never[]> {
+  console.warn('[Technogym] getWorkoutResults is not available in S2S integration. Workout data comes from equipment automatically.');
+  return [];
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function getBiometrics(): Promise<never[]> {
+  console.warn('[Technogym] getBiometrics is not available in S2S integration. Biometric data comes from equipment automatically.');
+  return [];
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function getTrainingPrograms(): Promise<never[]> {
+  console.warn('[Technogym] getTrainingPrograms is not available in S2S integration.');
+  return [];
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function calculateUserStats(): Promise<null> {
+  console.warn('[Technogym] calculateUserStats is not available in S2S integration.');
+  return null;
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function getFacilityUsers(): Promise<{ users: never[]; total: number }> {
+  console.warn('[Technogym] getFacilityUsers is not available in S2S integration. Use individual user lookups by permanentToken or externalId.');
+  return { users: [], total: 0 };
+}
+
+/** @deprecated No longer supported in S2S integration */
+export async function getFullUserProfile(): Promise<null> {
+  console.warn('[Technogym] getFullUserProfile is not available in S2S integration.');
+  return null;
+}
